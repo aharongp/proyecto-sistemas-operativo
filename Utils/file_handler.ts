@@ -1,121 +1,139 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { ProcessInput, validateProcesses } from "../Core/process";
+import { ProcesoEntrada, validarProcesos } from "../Core/process";
 
-const parseNumber = (value: unknown, fallback?: number): number => {
-	if (value === undefined || value === null || value === "") {
-		if (fallback !== undefined) {
-			return fallback;
-		}
-		throw new Error("Required numeric value missing");
-	}
-	const parsed = Number(value);
-	if (Number.isNaN(parsed)) {
-		throw new Error(`Invalid numeric value: ${value}`);
-	}
-	return parsed;
+const parsearNumero = (valor: unknown, respaldo?: number): number => {
+if (valor === undefined || valor === null || valor === "") {
+if (respaldo !== undefined) {
+return respaldo;
+}
+throw new Error("Se requiere un valor numérico");
+}
+const parseado = Number(valor);
+if (Number.isNaN(parseado)) {
+throw new Error(`Valor numérico inválido: ${valor}`);
+}
+return parseado;
 };
 
-const sanitizeProcess = (raw: Record<string, unknown>, index: number): ProcessInput => {
-	if (!raw.id) {
-		throw new Error(`Process at index ${index} missing id`);
-	}
-	const arrivalTime = parseNumber(raw.arrivalTime, 0);
-	const burstTime = parseNumber(raw.burstTime);
-	const priority = raw.priority !== undefined ? parseNumber(raw.priority) : undefined;
-	return {
-		id: String(raw.id),
-		arrivalTime,
-		burstTime,
-		priority,
-	};
+const sanitizarProceso = (crudo: Record<string, unknown>, indice: number): ProcesoEntrada => {
+if (!crudo.id) {
+throw new Error(`Proceso en índice ${indice} no tiene id`);
+}
+// Mapeo flexible para soportar input en ingles o español si fuera necesario, o solo español.
+// Asumimos entrada en español o inglés por compatibilidad básica si queremos, pero mejor estricto en el nuevo formato.
+// Vamos a soportar ambas keys por robustez si se lee un json viejo.
+const tiempoLlegada = parsearNumero(crudo.tiempoLlegada ?? crudo.arrivalTime, 0);
+const tiempoRafaga = parsearNumero(crudo.tiempoRafaga ?? crudo.burstTime);
+const prioridad = (crudo.prioridad !== undefined || crudo.priority !== undefined)
+? parsearNumero(crudo.prioridad ?? crudo.priority)
+: undefined;
+
+return {
+id: String(crudo.id),
+tiempoLlegada,
+tiempoRafaga,
+prioridad,
+};
 };
 
-export const readProcessesFromJson = async (filePath: string): Promise<ProcessInput[]> => {
-	const content = await fs.readFile(filePath, "utf8");
-	const payload = JSON.parse(content);
-	if (!Array.isArray(payload)) {
-		throw new Error("JSON file must contain an array of processes");
-	}
-	const processes = payload.map((entry, index) => sanitizeProcess(entry, index));
-	validateProcesses(processes);
-	return processes;
+/**
+ * Lee procesos desde un archivo JSON.
+ */
+export const leerProcesosDesdeJson = async (rutaArchivo: string): Promise<ProcesoEntrada[]> => {
+const contenido = await fs.readFile(rutaArchivo, "utf8");
+const carga = JSON.parse(contenido);
+if (!Array.isArray(carga)) {
+throw new Error("El archivo JSON debe contener un array de procesos");
+}
+const procesos = carga.map((entrada, indice) => sanitizarProceso(entrada, indice));
+validarProcesos(procesos);
+return procesos;
 };
 
-const CSV_SEPARATORS = [",", ";", "\t"];
+const SEPARADORES_CSV = [",", ";", "\t"];
 
-const detectSeparator = (header: string) => {
-	for (const separator of CSV_SEPARATORS) {
-		if (header.includes(separator)) {
-			return separator;
-		}
-	}
-	return ",";
+const detectarSeparador = (encabezado: string) => {
+for (const sep of SEPARADORES_CSV) {
+if (encabezado.includes(sep)) {
+return sep;
+}
+}
+return ",";
 };
 
-export const readProcessesFromCsv = async (filePath: string): Promise<ProcessInput[]> => {
-	const content = await fs.readFile(filePath, "utf8");
-	const lines = content
-		.split(/\r?\n/)
-		.map((line) => line.trim())
-		.filter((line) => line.length > 0 && !line.startsWith("#"));
+/**
+ * Lee procesos desde un archivo CSV o TXT delimitado.
+ */
+export const leerProcesosDesdeCsv = async (rutaArchivo: string): Promise<ProcesoEntrada[]> => {
+const contenido = await fs.readFile(rutaArchivo, "utf8");
+const lineas = contenido
+.split(/\r?\n/)
+.map((linea) => linea.trim())
+.filter((linea) => linea.length > 0 && !linea.startsWith("#"));
 
-	if (lines.length === 0) {
-		return [];
-	}
+if (lineas.length === 0) {
+return [];
+}
 
-	const separator = detectSeparator(lines[0]);
-	const headers = lines[0].split(separator).map((value) => value.trim());
-	const rows = lines.slice(1);
+const separador = detectarSeparador(lineas[0]);
+const encabezados = lineas[0].split(separador).map((v) => v.trim());
+const filas = lineas.slice(1);
 
-	const processes = rows.map((row, index) => {
-		const values = row.split(separator).map((value) => value.trim());
-		const raw: Record<string, unknown> = {};
-		headers.forEach((header, headerIndex) => {
-			raw[header] = values[headerIndex];
-		});
-		return sanitizeProcess(raw, index);
-	});
+const procesos = filas.map((fila, indice) => {
+const valores = fila.split(separador).map((v) => v.trim());
+const crudo: Record<string, unknown> = {};
+encabezados.forEach((encabezado, idx) => {
+crudo[encabezado] = valores[idx];
+});
+return sanitizarProceso(crudo, indice);
+});
 
-	validateProcesses(processes);
-	return processes;
+validarProcesos(procesos);
+return procesos;
 };
 
-export const writeProcessesToJson = async (filePath: string, processes: ProcessInput[]) => {
-	await fs.writeFile(filePath, JSON.stringify(processes, null, 2), "utf8");
+export const escribirProcesosAJson = async (rutaArchivo: string, procesos: ProcesoEntrada[]) => {
+await fs.writeFile(rutaArchivo, JSON.stringify(procesos, null, 2), "utf8");
 };
 
-const toCsvLine = (process: ProcessInput) =>
-	[process.id, process.arrivalTime, process.burstTime, process.priority ?? ""].join(",");
+const aLineaCsv = (proceso: ProcesoEntrada) =>
+[proceso.id, proceso.tiempoLlegada, proceso.tiempoRafaga, proceso.prioridad ?? ""].join(",");
 
-export const writeProcessesToCsv = async (filePath: string, processes: ProcessInput[]) => {
-	const header = "id,arrivalTime,burstTime,priority";
-	const rows = processes.map((process) => toCsvLine(process));
-	const payload = [header, ...rows].join("\n");
-	await fs.writeFile(filePath, payload, "utf8");
+export const escribirProcesosACsv = async (rutaArchivo: string, procesos: ProcesoEntrada[]) => {
+const encabezado = "id,tiempoLlegada,tiempoRafaga,prioridad";
+const filas = procesos.map((proc) => aLineaCsv(proc));
+const carga = [encabezado, ...filas].join("\n");
+await fs.writeFile(rutaArchivo, carga, "utf8");
 };
 
-export const loadProcesses = async (filePath: string): Promise<ProcessInput[]> => {
-	const extension = path.extname(filePath).toLowerCase();
-	if (extension === ".json") {
-		return readProcessesFromJson(filePath);
-	}
-	if (extension === ".csv" || extension === ".txt") {
-		return readProcessesFromCsv(filePath);
-	}
-	throw new Error(`Unsupported file format: ${extension}`);
+/**
+ * Carga procesos desde un archivo detectando formato por extensión.
+ */
+export const cargarProcesos = async (rutaArchivo: string): Promise<ProcesoEntrada[]> => {
+const extension = path.extname(rutaArchivo).toLowerCase();
+if (extension === ".json") {
+return leerProcesosDesdeJson(rutaArchivo);
+}
+if (extension === ".csv" || extension === ".txt") {
+return leerProcesosDesdeCsv(rutaArchivo);
+}
+throw new Error(`Formato de archivo no soportado: ${extension}`);
 };
 
-export const saveProcesses = async (filePath: string, processes: ProcessInput[]) => {
-	const extension = path.extname(filePath).toLowerCase();
-	if (extension === ".json") {
-		await writeProcessesToJson(filePath, processes);
-		return;
-	}
-	if (extension === ".csv" || extension === ".txt") {
-		await writeProcessesToCsv(filePath, processes);
-		return;
-	}
-	throw new Error(`Unsupported file format: ${extension}`);
+/**
+ * Guarda procesos en un archivo detectando formato por extensión.
+ */
+export const guardarProcesos = async (rutaArchivo: string, procesos: ProcesoEntrada[]) => {
+const extension = path.extname(rutaArchivo).toLowerCase();
+if (extension === ".json") {
+await escribirProcesosAJson(rutaArchivo, procesos);
+return;
+}
+if (extension === ".csv" || extension === ".txt") {
+await escribirProcesosACsv(rutaArchivo, procesos);
+return;
+}
+throw new Error(`Formato de archivo no soportado: ${extension}`);
 };

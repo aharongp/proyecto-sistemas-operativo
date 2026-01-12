@@ -1,39 +1,63 @@
 "use strict";
+// Definición de tipos básicos para el sistema de simulación de procesos
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.validateProcesses = exports.sortByArrival = exports.cloneProcess = exports.ProcessState = void 0;
-var ProcessState;
-(function (ProcessState) {
-    ProcessState["New"] = "NEW";
-    ProcessState["Ready"] = "READY";
-    ProcessState["Running"] = "RUNNING";
-    ProcessState["Waiting"] = "WAITING";
-    ProcessState["Terminated"] = "TERMINATED";
-})(ProcessState || (exports.ProcessState = ProcessState = {}));
-const cloneProcess = (process) => ({
-    process: { ...process },
-    startTimes: [],
-    completionTime: null,
-    remainingTime: process.burstTime,
+exports.validarProcesos = exports.ordenarPorLlegada = exports.clonarProceso = exports.EstadoProceso = void 0;
+/**
+ * Enumeración que representa los estados posibles de un proceso.
+ * NUEVO: El proceso se está creando.
+ * LISTO: El proceso está listo para ejecutarse.
+ * EJECUTANDO: El proceso se está ejecutando.
+ * ESPERANDO: El proceso está esperando un evento.
+ * TERMINADO: El proceso ha terminado su ejecución.
+ */
+var EstadoProceso;
+(function (EstadoProceso) {
+    EstadoProceso["Nuevo"] = "NUEVO";
+    EstadoProceso["Listo"] = "LISTO";
+    EstadoProceso["Ejecutando"] = "EJECUTANDO";
+    EstadoProceso["Esperando"] = "ESPERANDO";
+    EstadoProceso["Terminado"] = "TERMINADO";
+})(EstadoProceso || (exports.EstadoProceso = EstadoProceso = {}));
+/**
+ * Función auxiliar para clonar un proceso y crear su traza de ejecución inicial.
+ * @param proceso El proceso de entrada.
+ * @returns Una nueva instancia de TrazaEjecucionProceso.
+ */
+const clonarProceso = (proceso) => ({
+    proceso: { ...proceso },
+    tiemposInicio: [],
+    tiempoFinalizacion: null,
+    tiempoRestante: proceso.tiempoRafaga,
 });
-exports.cloneProcess = cloneProcess;
-const sortByArrival = (processes) => [...processes].sort((a, b) => {
-    if (a.arrivalTime === b.arrivalTime) {
+exports.clonarProceso = clonarProceso;
+/**
+ * Ordena un array de procesos por tiempo de llegada ascendente.
+ * En caso de empate, ordena por ID.
+ * @param procesos Lista de procesos a ordenar.
+ */
+const ordenarPorLlegada = (procesos) => [...procesos].sort((a, b) => {
+    if (a.tiempoLlegada === b.tiempoLlegada) {
         return a.id.localeCompare(b.id);
     }
-    return a.arrivalTime - b.arrivalTime;
+    return a.tiempoLlegada - b.tiempoLlegada;
 });
-exports.sortByArrival = sortByArrival;
-const validateProcesses = (processes) => {
-    processes.forEach((proc) => {
-        if (proc.arrivalTime < 0) {
-            throw new Error(`Arrival time must be >= 0 for process ${proc.id}`);
+exports.ordenarPorLlegada = ordenarPorLlegada;
+/**
+ * Valida que los procesos tengan valores lógicos (tiempos no negativos, etc.).
+ * @param procesos Lista de procesos a validar.
+ * @throws Error si algún valor es inválido.
+ */
+const validarProcesos = (procesos) => {
+    procesos.forEach((proc) => {
+        if (proc.tiempoLlegada < 0) {
+            throw new Error(`El tiempo de llegada debe ser >= 0 para el proceso ${proc.id}`);
         }
-        if (proc.burstTime <= 0) {
-            throw new Error(`Burst time must be > 0 for process ${proc.id}`);
+        if (proc.tiempoRafaga <= 0) {
+            throw new Error(`El tiempo de ráfaga debe ser > 0 para el proceso ${proc.id}`);
         }
-        if (proc.priority !== undefined && proc.priority < 0) {
-            throw new Error(`Priority must be >= 0 for process ${proc.id}`);
+        if (proc.prioridad !== undefined && proc.prioridad < 0) {
+            throw new Error(`La prioridad debe ser >= 0 para el proceso ${proc.id}`);
         }
     });
 };
-exports.validateProcesses = validateProcesses;
+exports.validarProcesos = validarProcesos;

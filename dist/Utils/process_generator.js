@@ -1,75 +1,91 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildCustomCase = exports.generateRandomProcesses = exports.getPredefinedCase = exports.getPredefinedCases = void 0;
-const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
-const createProcess = (id, arrivalTime, burstTime, priority) => ({
+exports.construirCasoPersonalizado = exports.generarProcesosAleatorios = exports.obtenerCasoPredefinido = exports.obtenerCasosPredefinidos = void 0;
+const limitar = (valor, min, max) => Math.max(min, Math.min(valor, max));
+const crearProceso = (id, tiempoLlegada, tiempoRafaga, prioridad) => ({
     id,
-    arrivalTime,
-    burstTime,
-    priority,
+    tiempoLlegada,
+    tiempoRafaga,
+    prioridad,
 });
-const CASE_ONE = {
-    name: "Caso 1 - Procesos Basicos",
-    description: "Conjunto base del enunciado con cuatro procesos",
-    processes: [
-        createProcess("P1", 0, 8, 3),
-        createProcess("P2", 1, 4, 1),
-        createProcess("P3", 2, 9, 4),
-        createProcess("P4", 3, 5, 2),
+const CASO_UNO = {
+    nombre: "Caso 1 - Procesos Basicos",
+    descripcion: "Conjunto base del enunciado con cuatro procesos",
+    procesos: [
+        crearProceso("P1", 0, 8, 3),
+        crearProceso("P2", 1, 4, 1),
+        crearProceso("P3", 2, 9, 4),
+        crearProceso("P4", 3, 5, 2),
     ],
 };
-const CASE_TWO = {
-    name: "Caso 2 - Procesos Variados",
-    description: "Conjunto mixto con cinco procesos",
-    processes: [
-        createProcess("P1", 0, 10, 2),
-        createProcess("P2", 2, 3, 1),
-        createProcess("P3", 4, 6, 3),
-        createProcess("P4", 6, 1, 1),
-        createProcess("P5", 8, 4, 2),
+const CASO_DOS = {
+    nombre: "Caso 2 - Procesos Variados",
+    descripcion: "Conjunto mixto con cinco procesos",
+    procesos: [
+        crearProceso("P1", 0, 10, 2),
+        crearProceso("P2", 2, 3, 1),
+        crearProceso("P3", 4, 6, 3),
+        crearProceso("P4", 6, 1, 1),
+        crearProceso("P5", 8, 4, 2),
     ],
 };
-const CASE_THREE = {
-    name: "Caso 3 - Escenario Personal",
-    description: "Conjunto editable para experimentos adicionales",
-    processes: [
-        createProcess("P1", 0, 7, 2),
-        createProcess("P2", 1, 5, 4),
-        createProcess("P3", 3, 2, 1),
-        createProcess("P4", 5, 6, 3),
+const CASO_TRES = {
+    nombre: "Caso 3 - Escenario Personal",
+    descripcion: "Conjunto editable para experimentos adicionales",
+    procesos: [
+        crearProceso("P1", 0, 7, 2),
+        crearProceso("P2", 1, 5, 4),
+        crearProceso("P3", 3, 2, 1),
+        crearProceso("P4", 5, 6, 3),
     ],
 };
-const PREDEFINED_CASES = [CASE_ONE, CASE_TWO, CASE_THREE];
-const getPredefinedCases = () => PREDEFINED_CASES;
-exports.getPredefinedCases = getPredefinedCases;
-const getPredefinedCase = (name) => PREDEFINED_CASES.find((set) => set.name.toLowerCase() === name.toLowerCase());
-exports.getPredefinedCase = getPredefinedCase;
-const generateRandomProcesses = (count, options = {}) => {
-    if (count <= 0) {
+const CASOS_PREDEFINIDOS = [CASO_UNO, CASO_DOS, CASO_TRES];
+/**
+ * Retorna todos los casos de prueba predefinidos.
+ */
+const obtenerCasosPredefinidos = () => CASOS_PREDEFINIDOS;
+exports.obtenerCasosPredefinidos = obtenerCasosPredefinidos;
+/**
+ * Busca un caso predefinido por nombre.
+ */
+const obtenerCasoPredefinido = (nombre) => CASOS_PREDEFINIDOS.find((set) => set.nombre.toLowerCase() === nombre.toLowerCase());
+exports.obtenerCasoPredefinido = obtenerCasoPredefinido;
+/**
+ * Genera una lista de procesos aleatorios según las opciones dadas.
+ *
+ * @param cantidad Número de procesos a generar.
+ * @param opciones Rangos de valores.
+ * @returns Lista de procesos ordenados por llegada.
+ */
+const generarProcesosAleatorios = (cantidad, opciones = {}) => {
+    if (cantidad <= 0) {
         return [];
     }
-    const [arrivalMin, arrivalMax] = options.arrivalRange ?? [0, 10];
-    const [burstMin, burstMax] = options.burstRange ?? [1, 12];
-    const [priorityMin, priorityMax] = options.priorityRange ?? [1, 5];
-    const processes = [];
-    for (let index = 0; index < count; index += 1) {
-        const id = `PX${index + 1}`;
-        const arrival = Math.floor(Math.random() * (arrivalMax - arrivalMin + 1)) + arrivalMin;
-        const burst = Math.floor(Math.random() * (burstMax - burstMin + 1)) + burstMin;
-        const priority = Math.floor(Math.random() * (priorityMax - priorityMin + 1)) + priorityMin;
-        processes.push(createProcess(id, clamp(arrival, arrivalMin, arrivalMax), clamp(burst, burstMin, burstMax), clamp(priority, priorityMin, priorityMax)));
+    const [llegadaMin, llegadaMax] = opciones.rangoLlegada ?? [0, 10];
+    const [rafagaMin, rafagaMax] = opciones.rangoRafaga ?? [1, 12];
+    const [prioridadMin, prioridadMax] = opciones.rangoPrioridad ?? [1, 5];
+    const procesos = [];
+    for (let i = 0; i < cantidad; i += 1) {
+        const id = `PX${i + 1}`;
+        const llegada = Math.floor(Math.random() * (llegadaMax - llegadaMin + 1)) + llegadaMin;
+        const rafaga = Math.floor(Math.random() * (rafagaMax - rafagaMin + 1)) + rafagaMin;
+        const prioridad = Math.floor(Math.random() * (prioridadMax - prioridadMin + 1)) + prioridadMin;
+        procesos.push(crearProceso(id, limitar(llegada, llegadaMin, llegadaMax), limitar(rafaga, rafagaMin, rafagaMax), limitar(prioridad, prioridadMin, prioridadMax)));
     }
-    return processes.sort((a, b) => {
-        if (a.arrivalTime === b.arrivalTime) {
+    return procesos.sort((a, b) => {
+        if (a.tiempoLlegada === b.tiempoLlegada) {
             return a.id.localeCompare(b.id);
         }
-        return a.arrivalTime - b.arrivalTime;
+        return a.tiempoLlegada - b.tiempoLlegada;
     });
 };
-exports.generateRandomProcesses = generateRandomProcesses;
-const buildCustomCase = (name, processes, description) => ({
-    name,
-    description,
-    processes,
+exports.generarProcesosAleatorios = generarProcesosAleatorios;
+/**
+ * Construye un objeto ConjuntoProcesos personalizado.
+ */
+const construirCasoPersonalizado = (nombre, procesos, descripcion) => ({
+    nombre,
+    descripcion,
+    procesos,
 });
-exports.buildCustomCase = buildCustomCase;
+exports.construirCasoPersonalizado = construirCasoPersonalizado;

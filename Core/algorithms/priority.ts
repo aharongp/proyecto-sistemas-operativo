@@ -1,150 +1,173 @@
 import {
-	cloneProcess,
-	ProcessExecutionTrace,
-	ProcessInput,
-	ScheduledSlice,
+clonarProceso,
+TrazaEjecucionProceso,
+ProcesoEntrada,
+IntervaloEjecucion,
 } from "../process";
-import { AlgorithmImplementation } from "./types";
+import { ImplementacionAlgoritmo } from "./types";
 
-const getPriorityValue = (process: ProcessInput) =>
-	process.priority ?? Number.MAX_SAFE_INTEGER;
+const obtenerPrioridad = (proceso: ProcesoEntrada) =>
+proceso.prioridad ?? Number.MAX_SAFE_INTEGER;
 
-const selectHighestPriority = (ready: ProcessExecutionTrace[]): ProcessExecutionTrace => {
-	const ordered = [...ready].sort((a, b) => {
-		const priorityDiff = getPriorityValue(a.process) - getPriorityValue(b.process);
-		if (priorityDiff !== 0) {
-			return priorityDiff;
-		}
-		if (a.process.arrivalTime === b.process.arrivalTime) {
-			return a.process.id.localeCompare(b.process.id);
-		}
-		return a.process.arrivalTime - b.process.arrivalTime;
-	});
-	return ordered[0];
+/**
+ * Selecciona el proceso con mayor prioridad de la lista de listos.
+ * Menor valor numérico = Mayor prioridad.
+ * Desempate: FCFS.
+ */
+const seleccionarMayorPrioridad = (listos: TrazaEjecucionProceso[]): TrazaEjecucionProceso => {
+const ordenados = [...listos].sort((a, b) => {
+const diffPrioridad = obtenerPrioridad(a.proceso) - obtenerPrioridad(b.proceso);
+if (diffPrioridad !== 0) {
+return diffPrioridad;
+}
+if (a.proceso.tiempoLlegada === b.proceso.tiempoLlegada) {
+return a.proceso.id.localeCompare(b.proceso.id);
+}
+return a.proceso.tiempoLlegada - b.proceso.tiempoLlegada;
+});
+return ordenados[0];
 };
 
-const enqueueArrivals = (
-	ordered: ProcessInput[],
-	index: { value: number },
-	currentTime: number,
-	ready: ProcessExecutionTrace[],
-	traceById: Map<string, ProcessExecutionTrace>,
+const encolarLlegadas = (
+ordenados: ProcesoEntrada[],
+indice: { valor: number },
+tiempoActual: number,
+colaListos: TrazaEjecucionProceso[],
+trazaPorId: Map<string, TrazaEjecucionProceso>,
 ) => {
-	while (index.value < ordered.length && ordered[index.value].arrivalTime <= currentTime) {
-		const arriving = ordered[index.value];
-		const trace = traceById.get(arriving.id);
-		if (!trace) {
-			throw new Error(`Missing runtime trace for process ${arriving.id}`);
-		}
-		ready.push(trace);
-		index.value += 1;
-	}
+while (indice.valor < ordenados.length && ordenados[indice.valor].tiempoLlegada <= tiempoActual) {
+const entrando = ordenados[indice.valor];
+const traza = trazaPorId.get(entrando.id);
+if (!traza) {
+throw new Error(`Falta traza para el proceso ${entrando.id}`);
+}
+colaListos.push(traza);
+indice.valor += 1;
+}
 };
 
-const updateSlices = (
-	slices: ScheduledSlice[],
-	processId: string,
-	startTime: number,
-	endTime: number,
+const actualizarIntervalos = (
+intervalos: IntervaloEjecucion[],
+idProceso: string,
+tiempoInicio: number,
+tiempoFin: number,
 ) => {
-	const lastSlice = slices[slices.length - 1];
-	if (lastSlice && lastSlice.processId === processId && lastSlice.endTime === startTime) {
-		lastSlice.endTime = endTime;
-		return;
-	}
-	slices.push({ processId, startTime, endTime });
+const ultimo = intervalos[intervalos.length - 1];
+// Si el último intervalo es del mismo proceso y continuo, lo extendemos
+if (ultimo && ultimo.idProceso === idProceso && ultimo.tiempoFin === tiempoInicio) {
+ultimo.tiempoFin = tiempoFin;
+return;
+}
+intervalos.push({ idProceso, tiempoInicio, tiempoFin });
 };
 
-const runPriorityInternal = (
-	processes: ProcessInput[],
-	preemptive: boolean,
+const ejecutarPrioridadInterno = (
+procesos: ProcesoEntrada[],
+expropiativo: boolean,
 ) => {
-	const ordered = [...processes].sort((a, b) => {
-		if (a.arrivalTime === b.arrivalTime) {
-			return a.id.localeCompare(b.id);
-		}
-		return a.arrivalTime - b.arrivalTime;
-	});
-	const traces: ProcessExecutionTrace[] = ordered.map((proc) => cloneProcess(proc));
-	const traceById = new Map(traces.map((trace) => [trace.process.id, trace]));
-	const ready: ProcessExecutionTrace[] = [];
-	const slices: ScheduledSlice[] = [];
-	const index = { value: 0 };
-	let currentTime = 0;
-	let idleTime = 0;
+const ordenados = [...procesos].sort((a, b) => {
+if (a.tiempoLlegada === b.tiempoLlegada) {
+return a.id.localeCompare(b.id);
+}
+return a.tiempoLlegada - b.tiempoLlegada;
+});
 
-	if (ordered.length === 0) {
-		return { slices, traces, totalTime: 0, idleTime: 0 };
-	}
+const trazas: TrazaEjecucionProceso[] = ordenados.map((proc) => clonarProceso(proc));
+const trazaPorId = new Map(trazas.map((traza) => [traza.proceso.id, traza]));
 
-	currentTime = Math.min(...ordered.map((proc) => proc.arrivalTime));
-	enqueueArrivals(ordered, index, currentTime, ready, traceById);
+const listos: TrazaEjecucionProceso[] = [];
+const intervalos: IntervaloEjecucion[] = [];
+const indice = { valor: 0 };
 
-	while (ready.length > 0 || index.value < ordered.length) {
-		if (ready.length === 0) {
-			const nextArrival = ordered[index.value].arrivalTime;
-			idleTime += nextArrival - currentTime;
-			currentTime = nextArrival;
-			enqueueArrivals(ordered, index, currentTime, ready, traceById);
-			continue;
-		}
+let tiempoActual = 0;
+let tiempoOcioso = 0;
 
-		const selected = selectHighestPriority(ready);
-		const queueIndex = ready.findIndex((proc) => proc.process.id === selected.process.id);
-		ready.splice(queueIndex, 1);
-		if (selected.remainingTime <= 0) {
-			continue;
-		}
+if (ordenados.length === 0) {
+return { intervalos, trazas, tiempoTotal: 0, tiempoOcioso: 0 };
+}
 
-		if (
-			selected.startTimes.length === 0 ||
-			selected.startTimes[selected.startTimes.length - 1] !== currentTime
-		) {
-			selected.startTimes.push(currentTime);
-		}
+// Avanzar al primer proceso
+tiempoActual = Math.min(...ordenados.map((proc) => proc.tiempoLlegada));
+encolarLlegadas(ordenados, indice, tiempoActual, listos, trazaPorId);
 
-		const nextArrivalTime = index.value < ordered.length ? ordered[index.value].arrivalTime : Infinity;
-		let runDuration = selected.remainingTime;
-		if (preemptive && nextArrivalTime > currentTime) {
-			runDuration = Math.min(runDuration, nextArrivalTime - currentTime);
-			if (!Number.isFinite(runDuration) || runDuration <= 0) {
-				runDuration = selected.remainingTime;
-			}
-		}
+while (listos.length > 0 || indice.valor < ordenados.length) {
+// Si no hay procesos listos, avanzamos el tiempo (ocio)
+if (listos.length === 0) {
+const proximaLlegada = ordenados[indice.valor].tiempoLlegada;
+tiempoOcioso += proximaLlegada - tiempoActual;
+tiempoActual = proximaLlegada;
+encolarLlegadas(ordenados, indice, tiempoActual, listos, trazaPorId);
+continue;
+}
 
-		const endTime = currentTime + runDuration;
-		selected.remainingTime -= runDuration;
-		if (selected.remainingTime < 0) {
-			selected.remainingTime = 0;
-		}
-		updateSlices(slices, selected.process.id, currentTime, endTime);
-		currentTime = endTime;
-		enqueueArrivals(ordered, index, currentTime, ready, traceById);
+const seleccionado = seleccionarMayorPrioridad(listos);
+const indiceCola = listos.findIndex((proc) => proc.proceso.id === seleccionado.proceso.id);
+listos.splice(indiceCola, 1);
 
-		if (selected.remainingTime === 0) {
-			selected.completionTime = currentTime;
-		} else {
-			ready.push(selected);
-			if (!preemptive) {
-				// Should not happen for non-preemptive, but guard to avoid infinite loop.
-				selected.completionTime = currentTime;
-				selected.remainingTime = 0;
-			}
-		}
-	}
+if (seleccionado.tiempoRestante <= 0) {
+continue;
+}
 
-	return {
-		slices,
-		traces,
-		totalTime: currentTime,
-		idleTime,
-	};
+// Registrar inicio si es discontinuo o inicio
+if (
+seleccionado.tiemposInicio.length === 0 ||
+seleccionado.tiemposInicio[seleccionado.tiemposInicio.length - 1] !== tiempoActual
+) {
+seleccionado.tiemposInicio.push(tiempoActual);
+}
+
+const proximaLlegada = indice.valor < ordenados.length ? ordenados[indice.valor].tiempoLlegada : Infinity;
+let duracionEjecucion = seleccionado.tiempoRestante;
+
+// Si es expropiativo, verificamos si alguien llega antes de terminar
+if (expropiativo && proximaLlegada > tiempoActual) {
+duracionEjecucion = Math.min(duracionEjecucion, proximaLlegada - tiempoActual);
+if (!Number.isFinite(duracionEjecucion) || duracionEjecucion <= 0) {
+duracionEjecucion = seleccionado.tiempoRestante;
+}
+}
+
+const tiempoFin = tiempoActual + duracionEjecucion;
+seleccionado.tiempoRestante -= duracionEjecucion;
+
+if (seleccionado.tiempoRestante < 0) {
+seleccionado.tiempoRestante = 0;
+}
+
+actualizarIntervalos(intervalos, seleccionado.proceso.id, tiempoActual, tiempoFin);
+tiempoActual = tiempoFin;
+
+// Procesar nuevas llegadas durante este tiempo
+encolarLlegadas(ordenados, indice, tiempoActual, listos, trazaPorId);
+
+if (seleccionado.tiempoRestante === 0) {
+seleccionado.tiempoFinalizacion = tiempoActual;
+} else {
+// Volver a la cola si no terminó (expropiado)
+listos.push(seleccionado);
+if (!expropiativo) {
+// Seguridad: no debería pasar en no expropiativo
+seleccionado.tiempoFinalizacion = tiempoActual;
+seleccionado.tiempoRestante = 0;
+}
+}
+}
+
+return {
+intervalos,
+trazas,
+tiempoTotal: tiempoActual,
+tiempoOcioso,
+};
 };
 
-const runPriority: AlgorithmImplementation = (processes, options = {}) => {
-	const preemptive = options.preemptivePriority ?? false;
-	return runPriorityInternal(processes, preemptive);
+/**
+ * Implementación del algoritmo de Prioridad.
+ * Soporta modo expropiativo y no expropiativo.
+ */
+const ejecutarPrioridad: ImplementacionAlgoritmo = (procesos, opciones = {}) => {
+const expropiativo = opciones.prioridadExpropiativa ?? false;
+return ejecutarPrioridadInterno(procesos, expropiativo);
 };
 
-export default runPriority;
-
+export default ejecutarPrioridad;

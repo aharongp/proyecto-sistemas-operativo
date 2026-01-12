@@ -1,113 +1,120 @@
-import { SimulationResult } from "../Core/process";
+import { ResultadoSimulacion } from "../Core/process";
 
-const formatNumber = (value: number) => value.toFixed(2).padStart(7, " ");
+const formatearNumero = (valor: number) => valor.toFixed(2).padStart(7, " ");
 
-const renderProcessRow = (metric: SimulationResult["metrics"][number]) =>
-	[
-		metric.processId.padEnd(6, " "),
-		metric.arrivalTime.toString().padStart(6, " "),
-		metric.burstTime.toString().padStart(6, " "),
-		(metric.priority ?? "-").toString().padStart(8, " "),
-		metric.completionTime.toString().padStart(10, " "),
-		formatNumber(metric.turnaroundTime),
-		formatNumber(metric.waitingTime),
-		formatNumber(metric.responseTime),
-	].join("  ");
+const renderizarFilaProceso = (metric: ResultadoSimulacion["metricas"][number]) =>
+[
+metric.idProceso.padEnd(6, " "),
+metric.tiempoLlegada.toString().padStart(6, " "),
+metric.tiempoRafaga.toString().padStart(6, " "),
+(metric.prioridad ?? "-").toString().padStart(9, " "),
+metric.tiempoFinalizacion.toString().padStart(10, " "),
+formatearNumero(metric.tiempoRetorno),
+formatearNumero(metric.tiempoEspera),
+formatearNumero(metric.tiempoRespuesta),
+].join("  ");
 
-const renderTimeline = (result: SimulationResult) => {
-	if (result.slices.length === 0) {
-		return "Sin ejecucion";
-	}
+const renderizarLineaTiempo = (resultado: ResultadoSimulacion) => {
+if (resultado.intervalos.length === 0) {
+return "Sin ejecucion";
+}
 
-	const segments = result.slices.map((slice) => {
-		const label = slice.processId.padEnd(4, " ");
-		return `${slice.startTime}|${label}|${slice.endTime}`;
-	});
-	return segments.join(" -- ");
+const segmentos = resultado.intervalos.map((intervalo) => {
+const etiqueta = intervalo.idProceso.padEnd(4, " ");
+return `${intervalo.tiempoInicio}|${etiqueta}|${intervalo.tiempoFin}`;
+});
+return segmentos.join(" -- ");
 };
 
-export const printSimulationResult = (result: SimulationResult) => {
-	console.log(`\n=== ${result.algorithm} ===`);
-	console.log("Procesos:");
-	console.log(
-		[
-			"ID".padEnd(6, " "),
-			"Llegada".padStart(6, " "),
-			"Rafaga".padStart(6, " "),
-			"Prioridad".padStart(8, " "),
-			"Finaliza".padStart(10, " "),
-			"T.Ret".padStart(7, " "),
-			"T.Esp".padStart(7, " "),
-			"T.Res".padStart(7, " "),
-		].join("  "),
-	);
-	result.metrics.forEach((metric) => console.log(renderProcessRow(metric)));
+/**
+ * Imprime en consola el resultado detallado de una simulación.
+ */
+export const imprimirResultadoSimulacion = (resultado: ResultadoSimulacion) => {
+console.log(`\n=== ${resultado.algoritmo} ===`);
+console.log("Procesos:");
+console.log(
+[
+"ID".padEnd(6, " "),
+"Llegada".padStart(6, " "),
+"Rafaga".padStart(6, " "),
+"Prioridad".padStart(9, " "),
+"Finaliza".padStart(10, " "),
+"T.Ret".padStart(7, " "),
+"T.Esp".padStart(7, " "),
+"T.Res".padStart(7, " "),
+].join("  "),
+);
+resultado.metricas.forEach((metrica) => console.log(renderizarFilaProceso(metrica)));
 
-	console.log("\nResumen:");
-	console.log(`Total tiempo   : ${formatNumber(result.totalTime)}`);
-	console.log(`Tiempo inactivo: ${formatNumber(result.idleTime)}`);
-	console.log(`Promedio Retorno : ${formatNumber(result.summary.averageTurnaround)}`);
-	console.log(`Promedio Espera  : ${formatNumber(result.summary.averageWaiting)}`);
-	console.log(`Promedio Respuesta: ${formatNumber(result.summary.averageResponse)}`);
-	console.log(`Utilizacion CPU  : ${formatNumber(result.summary.cpuUtilization)} %`);
-	console.log(`Throughput       : ${formatNumber(result.summary.throughput)}`);
+console.log("\nResumen:");
+console.log(`Total tiempo     : ${formatearNumero(resultado.tiempoTotal)}`);
+console.log(`Tiempo ocioso    : ${formatearNumero(resultado.tiempoOcioso)}`);
+console.log(`Promedio Retorno : ${formatearNumero(resultado.resumen.promedioRetorno)}`);
+console.log(`Promedio Espera  : ${formatearNumero(resultado.resumen.promedioEspera)}`);
+console.log(`Promedio Respuesta: ${formatearNumero(resultado.resumen.promedioRespuesta)}`);
+console.log(`Utilizacion CPU  : ${formatearNumero(resultado.resumen.utilizacionCpu)} %`);
+console.log(`Rendimiento      : ${formatearNumero(resultado.resumen.rendimiento)}`);
 
-	console.log("\nDiagrama Gantt (texto):");
-	console.log(renderTimeline(result));
+console.log("\nDiagrama Gantt (texto):");
+console.log(renderizarLineaTiempo(resultado));
 };
 
-const findBestAlgorithm = (results: SimulationResult[]) => {
-	if (results.length === 0) {
-		return undefined;
-	}
-	return results.reduce((best, current) => {
-		if (!best) {
-			return current;
-		}
-		if (current.summary.averageWaiting < best.summary.averageWaiting) {
-			return current;
-		}
-		if (current.summary.averageWaiting === best.summary.averageWaiting) {
-			return current.summary.averageTurnaround < best.summary.averageTurnaround ? current : best;
-		}
-		return best;
-	});
+const encontrarMejorAlgoritmo = (resultados: ResultadoSimulacion[]) => {
+if (resultados.length === 0) {
+return undefined;
+}
+return resultados.reduce((mejor, actual) => {
+if (!mejor) {
+return actual;
+}
+// Criterio principal: menor tiempo de espera promedio
+if (actual.resumen.promedioEspera < mejor.resumen.promedioEspera) {
+return actual;
+}
+// Empate: menor tiempo de retorno promedio
+if (actual.resumen.promedioEspera === mejor.resumen.promedioEspera) {
+return actual.resumen.promedioRetorno < mejor.resumen.promedioRetorno ? actual : mejor;
+}
+return mejor;
+});
 };
 
-export const printComparison = (results: SimulationResult[]) => {
-	if (results.length === 0) {
-		console.log("Sin resultados para comparar");
-		return;
-	}
+/**
+ * Imprime una tabla comparativa de múltiples simulaciones.
+ */
+export const imprimirComparativa = (resultados: ResultadoSimulacion[]) => {
+if (resultados.length === 0) {
+console.log("Sin resultados para comparar");
+return;
+}
 
-	console.log("\n=== Comparativa de algoritmos ===");
-	console.log(
-		[
-			"Algoritmo".padEnd(26, " "),
-			"T.Ret Prom".padStart(12, " "),
-			"T.Esp Prom".padStart(12, " "),
-			"T.Res Prom".padStart(12, " "),
-			"CPU %".padStart(8, " "),
-			"Throughput".padStart(12, " "),
-		].join("  "),
-	);
+console.log("\n=== Comparativa de algoritmos ===");
+console.log(
+[
+"Algoritmo".padEnd(28, " "),
+"T.Ret Prom".padStart(12, " "),
+"T.Esp Prom".padStart(12, " "),
+"T.Res Prom".padStart(12, " "),
+"CPU %".padStart(8, " "),
+"Rendimiento".padStart(12, " "),
+].join("  "),
+);
 
-	results.forEach((result) => {
-		console.log(
-			[
-				result.algorithm.padEnd(26, " "),
-				formatNumber(result.summary.averageTurnaround),
-				formatNumber(result.summary.averageWaiting),
-				formatNumber(result.summary.averageResponse),
-				formatNumber(result.summary.cpuUtilization),
-				formatNumber(result.summary.throughput),
-			].join("  "),
-		);
-	});
+resultados.forEach((res) => {
+console.log(
+[
+res.algoritmo.padEnd(28, " "),
+formatearNumero(res.resumen.promedioRetorno),
+formatearNumero(res.resumen.promedioEspera),
+formatearNumero(res.resumen.promedioRespuesta),
+formatearNumero(res.resumen.utilizacionCpu),
+formatearNumero(res.resumen.rendimiento),
+].join("  "),
+);
+});
 
-	const best = findBestAlgorithm(results);
-	if (best) {
-		console.log(`\nMejor opcion segun T.Esp promedio: ${best.algorithm}`);
-	}
+const mejor = encontrarMejorAlgoritmo(resultados);
+if (mejor) {
+console.log(`\nMejor opcion segun T.Esp promedio: ${mejor.algoritmo}`);
+}
 };
-

@@ -1,78 +1,83 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const process_1 = require("../process");
-const enqueueArrivals = (ordered, index, currentTime, queue, traceById) => {
-    while (index.value < ordered.length && ordered[index.value].arrivalTime <= currentTime) {
-        const arriving = ordered[index.value];
-        const trace = traceById.get(arriving.id);
-        if (!trace) {
-            throw new Error(`Missing runtime trace for process ${arriving.id}`);
+const encolarLlegadas = (ordenados, indice, tiempoActual, cola, trazaPorId) => {
+    while (indice.valor < ordenados.length && ordenados[indice.valor].tiempoLlegada <= tiempoActual) {
+        const entrando = ordenados[indice.valor];
+        const traza = trazaPorId.get(entrando.id);
+        if (!traza) {
+            throw new Error(`Falta traza para el proceso ${entrando.id}`);
         }
-        queue.push(trace);
-        index.value += 1;
+        cola.push(traza);
+        indice.valor += 1;
     }
 };
-const runRoundRobin = (processes, options) => {
-    const quantum = options?.quantum ?? 2;
+/**
+ * Implementación del algoritmo Round Robin.
+ * Expropiativo basado en quantum.
+ */
+const ejecutarRoundRobin = (procesos, opciones) => {
+    const quantum = opciones?.quantum ?? 2;
     if (quantum <= 0) {
-        throw new Error("Round Robin requires quantum > 0");
+        throw new Error("Round Robin requiere quantum > 0");
     }
-    const ordered = [...processes].sort((a, b) => {
-        if (a.arrivalTime === b.arrivalTime) {
+    const ordenados = [...procesos].sort((a, b) => {
+        if (a.tiempoLlegada === b.tiempoLlegada) {
             return a.id.localeCompare(b.id);
         }
-        return a.arrivalTime - b.arrivalTime;
+        return a.tiempoLlegada - b.tiempoLlegada;
     });
-    const traces = ordered.map((proc) => (0, process_1.cloneProcess)(proc));
-    const traceById = new Map(traces.map((trace) => [trace.process.id, trace]));
-    const slices = [];
-    const queue = [];
-    const index = { value: 0 };
-    let currentTime = 0;
-    let idleTime = 0;
-    if (ordered.length === 0) {
-        return { slices, traces, totalTime: 0, idleTime: 0 };
+    const trazas = ordenados.map((proc) => (0, process_1.clonarProceso)(proc));
+    const trazaPorId = new Map(trazas.map((traza) => [traza.proceso.id, traza]));
+    const intervalos = [];
+    const cola = [];
+    const indice = { valor: 0 };
+    let tiempoActual = 0;
+    let tiempoOcioso = 0;
+    if (ordenados.length === 0) {
+        return { intervalos, trazas, tiempoTotal: 0, tiempoOcioso: 0 };
     }
-    currentTime = Math.min(...ordered.map((proc) => proc.arrivalTime));
-    enqueueArrivals(ordered, index, currentTime, queue, traceById);
-    while (queue.length > 0 || index.value < ordered.length) {
-        if (queue.length === 0) {
-            const nextArrival = ordered[index.value].arrivalTime;
-            idleTime += nextArrival - currentTime;
-            currentTime = nextArrival;
-            enqueueArrivals(ordered, index, currentTime, queue, traceById);
+    tiempoActual = Math.min(...ordenados.map((proc) => proc.tiempoLlegada));
+    encolarLlegadas(ordenados, indice, tiempoActual, cola, trazaPorId);
+    while (cola.length > 0 || indice.valor < ordenados.length) {
+        if (cola.length === 0) {
+            const proximaLlegada = ordenados[indice.valor].tiempoLlegada;
+            tiempoOcioso += proximaLlegada - tiempoActual;
+            tiempoActual = proximaLlegada;
+            encolarLlegadas(ordenados, indice, tiempoActual, cola, trazaPorId);
             continue;
         }
-        const trace = queue.shift();
-        if (!trace) {
+        const traza = cola.shift();
+        if (!traza) {
             continue;
         }
-        const sliceTime = Math.min(quantum, trace.remainingTime);
-        if (currentTime < trace.process.arrivalTime) {
-            idleTime += trace.process.arrivalTime - currentTime;
-            currentTime = trace.process.arrivalTime;
+        const tiempoIntervalo = Math.min(quantum, traza.tiempoRestante);
+        // Corrección de vacío si algo salió mal en llegadas (seguridad)
+        if (tiempoActual < traza.proceso.tiempoLlegada) {
+            tiempoOcioso += traza.proceso.tiempoLlegada - tiempoActual;
+            tiempoActual = traza.proceso.tiempoLlegada;
         }
-        trace.startTimes.push(currentTime);
-        const endTime = currentTime + sliceTime;
-        trace.remainingTime -= sliceTime;
-        if (trace.remainingTime < 0) {
-            trace.remainingTime = 0;
+        traza.tiemposInicio.push(tiempoActual);
+        const tiempoFin = tiempoActual + tiempoIntervalo;
+        traza.tiempoRestante -= tiempoIntervalo;
+        if (traza.tiempoRestante < 0) {
+            traza.tiempoRestante = 0;
         }
-        slices.push({ processId: trace.process.id, startTime: currentTime, endTime });
-        currentTime = endTime;
-        enqueueArrivals(ordered, index, currentTime, queue, traceById);
-        if (trace.remainingTime === 0) {
-            trace.completionTime = currentTime;
+        intervalos.push({ idProceso: traza.proceso.id, tiempoInicio: tiempoActual, tiempoFin });
+        tiempoActual = tiempoFin;
+        encolarLlegadas(ordenados, indice, tiempoActual, cola, trazaPorId);
+        if (traza.tiempoRestante === 0) {
+            traza.tiempoFinalizacion = tiempoActual;
         }
         else {
-            queue.push(trace);
+            cola.push(traza);
         }
     }
     return {
-        slices,
-        traces,
-        totalTime: currentTime,
-        idleTime,
+        intervalos,
+        trazas,
+        tiempoTotal: tiempoActual,
+        tiempoOcioso,
     };
 };
-exports.default = runRoundRobin;
+exports.default = ejecutarRoundRobin;

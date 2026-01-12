@@ -1,13 +1,19 @@
-import { ProcessExecutionTrace, ProcessInput, ScheduledSlice, SchedulerOptions } from "../process";
+import { TrazaEjecucionProceso, ProcesoEntrada, IntervaloEjecucion, OpcionesPlanificador } from "../process";
 
-export interface AlgorithmResult {
-  slices: ScheduledSlice[];
-  traces: ProcessExecutionTrace[];
-  totalTime: number;
-  idleTime: number;
+/**
+ * Resultado crudo de la ejecución de un algoritmo de planificación.
+ */
+export interface ResultadoAlgoritmo {
+  intervalos: IntervaloEjecucion[];
+  trazas: TrazaEjecucionProceso[];
+  tiempoTotal: number;
+  tiempoOcioso: number;
 }
 
-export type AlgorithmImplementation = (
-  processes: ProcessInput[],
-  options?: SchedulerOptions,
-) => AlgorithmResult;
+/**
+ * Definición de función para implementar un algoritmo de planificación.
+ */
+export type ImplementacionAlgoritmo = (
+  procesos: ProcesoEntrada[],
+  opciones?: OpcionesPlanificador,
+) => ResultadoAlgoritmo;

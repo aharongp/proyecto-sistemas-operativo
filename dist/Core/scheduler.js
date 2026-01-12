@@ -3,67 +3,89 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.runAllSimulations = exports.runSimulation = exports.getAlgorithms = exports.SchedulerAlgorithm = void 0;
+exports.ejecutarTodasSimulaciones = exports.ejecutarSimulacion = exports.obtenerAlgoritmos = exports.AlgoritmoPlanificacion = void 0;
 const metrics_1 = require("./metrics");
 const fcfs_1 = __importDefault(require("./algorithms/fcfs"));
 const sjf_1 = __importDefault(require("./algorithms/sjf"));
 const round_robin_1 = __importDefault(require("./algorithms/round_robin"));
 const priority_1 = __importDefault(require("./algorithms/priority"));
 const process_1 = require("./process");
-var SchedulerAlgorithm;
-(function (SchedulerAlgorithm) {
-    SchedulerAlgorithm["Fcfs"] = "FCFS";
-    SchedulerAlgorithm["Sjf"] = "SJF";
-    SchedulerAlgorithm["RoundRobin"] = "ROUND_ROBIN";
-    SchedulerAlgorithm["Priority"] = "PRIORITY";
-})(SchedulerAlgorithm || (exports.SchedulerAlgorithm = SchedulerAlgorithm = {}));
-const ALGORITHMS = {
-    [SchedulerAlgorithm.Fcfs]: {
-        key: SchedulerAlgorithm.Fcfs,
-        name: "First Come First Served",
-        run: fcfs_1.default,
+/**
+ * Enumeración de algoritmos disponibles en el sistema.
+ */
+var AlgoritmoPlanificacion;
+(function (AlgoritmoPlanificacion) {
+    AlgoritmoPlanificacion["Fcfs"] = "FCFS";
+    AlgoritmoPlanificacion["Sjf"] = "SJF";
+    AlgoritmoPlanificacion["RoundRobin"] = "ROUND_ROBIN";
+    AlgoritmoPlanificacion["Prioridad"] = "PRIORITY";
+})(AlgoritmoPlanificacion || (exports.AlgoritmoPlanificacion = AlgoritmoPlanificacion = {}));
+const ALGORITMOS = {
+    [AlgoritmoPlanificacion.Fcfs]: {
+        clave: AlgoritmoPlanificacion.Fcfs,
+        nombre: "First Come First Served (FCFS)",
+        ejecutar: fcfs_1.default,
     },
-    [SchedulerAlgorithm.Sjf]: {
-        key: SchedulerAlgorithm.Sjf,
-        name: "Shortest Job First",
-        run: sjf_1.default,
+    [AlgoritmoPlanificacion.Sjf]: {
+        clave: AlgoritmoPlanificacion.Sjf,
+        nombre: "Shortest Job First (SJF)",
+        ejecutar: sjf_1.default,
     },
-    [SchedulerAlgorithm.RoundRobin]: {
-        key: SchedulerAlgorithm.RoundRobin,
-        name: "Round Robin",
-        run: round_robin_1.default,
-        requiresQuantum: true,
+    [AlgoritmoPlanificacion.RoundRobin]: {
+        clave: AlgoritmoPlanificacion.RoundRobin,
+        nombre: "Round Robin",
+        ejecutar: round_robin_1.default,
+        requiereQuantum: true,
     },
-    [SchedulerAlgorithm.Priority]: {
-        key: SchedulerAlgorithm.Priority,
-        name: "Priority Scheduling",
-        run: priority_1.default,
+    [AlgoritmoPlanificacion.Prioridad]: {
+        clave: AlgoritmoPlanificacion.Prioridad,
+        nombre: "Planificación por Prioridad",
+        ejecutar: priority_1.default,
     },
 };
-const getAlgorithms = () => Object.values(ALGORITHMS).map((algorithm) => ({
-    key: algorithm.key,
-    name: algorithm.name,
-    requiresQuantum: algorithm.requiresQuantum,
+/**
+ * Obtiene la lista de algoritmos disponibles.
+ * @returns Lista de descriptores de algoritmos (sin la función de ejecución).
+ */
+const obtenerAlgoritmos = () => Object.values(ALGORITMOS).map((algoritmo) => ({
+    clave: algoritmo.clave,
+    nombre: algoritmo.nombre,
+    requiereQuantum: algoritmo.requiereQuantum,
 }));
-exports.getAlgorithms = getAlgorithms;
-const runSimulation = (algorithm, processes, options = {}) => {
-    (0, process_1.validateProcesses)(processes);
-    const descriptor = ALGORITHMS[algorithm];
+exports.obtenerAlgoritmos = obtenerAlgoritmos;
+/**
+ * Ejecuta una simulación con un algoritmo específico.
+ *
+ * @param algoritmo Clave del algoritmo a ejecutar.
+ * @param procesos Lista de procesos de entrada.
+ * @param opciones Opciones específicas para el algoritmo (quantum, expropiación, etc.).
+ * @returns Resultados completos de la simulación.
+ */
+const ejecutarSimulacion = (algoritmo, procesos, opciones = {}) => {
+    (0, process_1.validarProcesos)(procesos);
+    const descriptor = ALGORITMOS[algoritmo];
     if (!descriptor) {
-        throw new Error(`Unknown algorithm ${algorithm}`);
+        throw new Error(`Algoritmo desconocido: ${algoritmo}`);
     }
-    const { traces, slices, totalTime, idleTime } = descriptor.run(processes, options);
-    const { metrics, summary } = (0, metrics_1.calculateMetrics)({ traces, totalTime, idleTime, slices });
+    const { trazas, intervalos, tiempoTotal, tiempoOcioso } = descriptor.ejecutar(procesos, opciones);
+    const { metricas, resumen } = (0, metrics_1.calcularMetricas)({ trazas, tiempoTotal, tiempoOcioso, intervalos });
     return {
-        algorithm: descriptor.name,
-        slices,
-        metrics,
-        summary,
-        totalTime,
-        idleTime,
-        options,
+        algoritmo: descriptor.nombre,
+        intervalos,
+        metricas,
+        resumen,
+        tiempoTotal,
+        tiempoOcioso,
+        opciones,
     };
 };
-exports.runSimulation = runSimulation;
-const runAllSimulations = (processes, options = {}) => (0, exports.getAlgorithms)().map((algorithm) => (0, exports.runSimulation)(algorithm.key, processes, options[algorithm.key] ?? {}));
-exports.runAllSimulations = runAllSimulations;
+exports.ejecutarSimulacion = ejecutarSimulacion;
+/**
+ * Ejecuta simulaciones para todos los algoritmos disponibles.
+ *
+ * @param procesos Lista de procesos de entrada.
+ * @param opciones Mapa de opciones por algoritmo.
+ * @returns Lista de resultados de simulación.
+ */
+const ejecutarTodasSimulaciones = (procesos, opciones = {}) => (0, exports.obtenerAlgoritmos)().map((algoritmo) => (0, exports.ejecutarSimulacion)(algoritmo.clave, procesos, opciones[algoritmo.clave] ?? {}));
+exports.ejecutarTodasSimulaciones = ejecutarTodasSimulaciones;

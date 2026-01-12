@@ -1,90 +1,114 @@
-import { calculateMetrics } from "./metrics";
-import fcfs from "./algorithms/fcfs";
-import sjf from "./algorithms/sjf";
-import roundRobin from "./algorithms/round_robin";
-import priority from "./algorithms/priority";
+import { calcularMetricas } from "./metrics";
+import ejecutarFcfs from "./algorithms/fcfs";
+import ejecutarSjf from "./algorithms/sjf";
+import ejecutarRoundRobin from "./algorithms/round_robin";
+import ejecutarPrioridad from "./algorithms/priority";
 import {
-	ProcessInput,
-	SchedulerOptions,
-	SimulationResult,
-	validateProcesses,
+ProcesoEntrada,
+OpcionesPlanificador,
+ResultadoSimulacion,
+validarProcesos,
 } from "./process";
-import { AlgorithmImplementation } from "./algorithms/types";
+import { ImplementacionAlgoritmo } from "./algorithms/types";
 
-export enum SchedulerAlgorithm {
-	Fcfs = "FCFS",
-	Sjf = "SJF",
-	RoundRobin = "ROUND_ROBIN",
-	Priority = "PRIORITY",
+/**
+ * Enumeración de algoritmos disponibles en el sistema.
+ */
+export enum AlgoritmoPlanificacion {
+Fcfs = "FCFS",
+Sjf = "SJF",
+RoundRobin = "ROUND_ROBIN",
+Prioridad = "PRIORITY",
 }
 
-interface AlgorithmDescriptor {
-	key: SchedulerAlgorithm;
-	name: string;
-	run: AlgorithmImplementation;
-	requiresQuantum?: boolean;
+/**
+ * Describe las características y la implementación de un algoritmo.
+ */
+interface DescriptorAlgoritmo {
+clave: AlgoritmoPlanificacion;
+nombre: string;
+ejecutar: ImplementacionAlgoritmo;
+requiereQuantum?: boolean;
 }
 
-const ALGORITHMS: Record<SchedulerAlgorithm, AlgorithmDescriptor> = {
-	[SchedulerAlgorithm.Fcfs]: {
-		key: SchedulerAlgorithm.Fcfs,
-		name: "First Come First Served",
-		run: fcfs,
-	},
-	[SchedulerAlgorithm.Sjf]: {
-		key: SchedulerAlgorithm.Sjf,
-		name: "Shortest Job First",
-		run: sjf,
-	},
-	[SchedulerAlgorithm.RoundRobin]: {
-		key: SchedulerAlgorithm.RoundRobin,
-		name: "Round Robin",
-		run: roundRobin,
-		requiresQuantum: true,
-	},
-	[SchedulerAlgorithm.Priority]: {
-		key: SchedulerAlgorithm.Priority,
-		name: "Priority Scheduling",
-		run: priority,
-	},
+const ALGORITMOS: Record<AlgoritmoPlanificacion, DescriptorAlgoritmo> = {
+[AlgoritmoPlanificacion.Fcfs]: {
+clave: AlgoritmoPlanificacion.Fcfs,
+nombre: "First Come First Served (FCFS)",
+ejecutar: ejecutarFcfs,
+},
+[AlgoritmoPlanificacion.Sjf]: {
+clave: AlgoritmoPlanificacion.Sjf,
+nombre: "Shortest Job First (SJF)",
+ejecutar: ejecutarSjf,
+},
+[AlgoritmoPlanificacion.RoundRobin]: {
+clave: AlgoritmoPlanificacion.RoundRobin,
+nombre: "Round Robin",
+ejecutar: ejecutarRoundRobin,
+requiereQuantum: true,
+},
+[AlgoritmoPlanificacion.Prioridad]: {
+clave: AlgoritmoPlanificacion.Prioridad,
+nombre: "Planificación por Prioridad",
+ejecutar: ejecutarPrioridad,
+},
 };
 
-export const getAlgorithms = () => Object.values(ALGORITHMS).map((algorithm) => ({
-	key: algorithm.key,
-	name: algorithm.name,
-	requiresQuantum: algorithm.requiresQuantum,
+/**
+ * Obtiene la lista de algoritmos disponibles.
+ * @returns Lista de descriptores de algoritmos (sin la función de ejecución).
+ */
+export const obtenerAlgoritmos = () => Object.values(ALGORITMOS).map((algoritmo) => ({
+clave: algoritmo.clave,
+nombre: algoritmo.nombre,
+requiereQuantum: algoritmo.requiereQuantum,
 }));
 
-export const runSimulation = (
-	algorithm: SchedulerAlgorithm,
-	processes: ProcessInput[],
-	options: SchedulerOptions = {},
-): SimulationResult => {
-	validateProcesses(processes);
-	const descriptor = ALGORITHMS[algorithm];
-	if (!descriptor) {
-		throw new Error(`Unknown algorithm ${algorithm}`);
-	}
+/**
+ * Ejecuta una simulación con un algoritmo específico.
+ * 
+ * @param algoritmo Clave del algoritmo a ejecutar.
+ * @param procesos Lista de procesos de entrada.
+ * @param opciones Opciones específicas para el algoritmo (quantum, expropiación, etc.).
+ * @returns Resultados completos de la simulación.
+ */
+export const ejecutarSimulacion = (
+algoritmo: AlgoritmoPlanificacion,
+procesos: ProcesoEntrada[],
+opciones: OpcionesPlanificador = {},
+): ResultadoSimulacion => {
+validarProcesos(procesos);
+const descriptor = ALGORITMOS[algoritmo];
+if (!descriptor) {
+throw new Error(`Algoritmo desconocido: ${algoritmo}`);
+}
 
-	const { traces, slices, totalTime, idleTime } = descriptor.run(processes, options);
-	const { metrics, summary } = calculateMetrics({ traces, totalTime, idleTime, slices });
+const { trazas, intervalos, tiempoTotal, tiempoOcioso } = descriptor.ejecutar(procesos, opciones);
+const { metricas, resumen } = calcularMetricas({ trazas, tiempoTotal, tiempoOcioso, intervalos });
 
-	return {
-		algorithm: descriptor.name,
-		slices,
-		metrics,
-		summary,
-		totalTime,
-		idleTime,
-		options,
-	};
+return {
+algoritmo: descriptor.nombre,
+intervalos,
+metricas,
+resumen,
+tiempoTotal,
+tiempoOcioso,
+opciones,
+};
 };
 
-export const runAllSimulations = (
-	processes: ProcessInput[],
-	options: Partial<Record<SchedulerAlgorithm, SchedulerOptions>> = {},
+/**
+ * Ejecuta simulaciones para todos los algoritmos disponibles.
+ * 
+ * @param procesos Lista de procesos de entrada.
+ * @param opciones Mapa de opciones por algoritmo.
+ * @returns Lista de resultados de simulación.
+ */
+export const ejecutarTodasSimulaciones = (
+procesos: ProcesoEntrada[],
+opciones: Partial<Record<AlgoritmoPlanificacion, OpcionesPlanificador>> = {},
 ) =>
-	getAlgorithms().map((algorithm) =>
-		runSimulation(algorithm.key, processes, options[algorithm.key] ?? {}),
-	);
-
+obtenerAlgoritmos().map((algoritmo) =>
+ejecutarSimulacion(algoritmo.clave, procesos, opciones[algoritmo.clave] ?? {}),
+);

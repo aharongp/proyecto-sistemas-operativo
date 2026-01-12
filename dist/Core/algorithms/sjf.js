@@ -1,62 +1,71 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const process_1 = require("../process");
-const selectShortestJob = (ready) => {
-    const ordered = [...ready].sort((a, b) => {
-        if (a.burstTime === b.burstTime) {
-            if (a.arrivalTime === b.arrivalTime) {
+/**
+ * Selecciona el proceso con menor tiempo de ráfaga (burstTime).
+ * Desempate: FCFS.
+ */
+const seleccionarTrabajoMasCorto = (listos) => {
+    const ordenados = [...listos].sort((a, b) => {
+        if (a.tiempoRafaga === b.tiempoRafaga) {
+            if (a.tiempoLlegada === b.tiempoLlegada) {
                 return a.id.localeCompare(b.id);
             }
-            return a.arrivalTime - b.arrivalTime;
+            return a.tiempoLlegada - b.tiempoLlegada;
         }
-        return a.burstTime - b.burstTime;
+        return a.tiempoRafaga - b.tiempoRafaga;
     });
-    return ordered[0];
+    return ordenados[0];
 };
-const runSjf = (processes) => {
-    const ordered = [...processes].sort((a, b) => {
-        if (a.arrivalTime === b.arrivalTime) {
+/**
+ * Implementación del algoritmo SJF (Shortest Job First).
+ * No expropiativo.
+ */
+const ejecutarSjf = (procesos) => {
+    const ordenados = [...procesos].sort((a, b) => {
+        if (a.tiempoLlegada === b.tiempoLlegada) {
             return a.id.localeCompare(b.id);
         }
-        return a.arrivalTime - b.arrivalTime;
+        return a.tiempoLlegada - b.tiempoLlegada;
     });
-    const traces = ordered.map((proc) => (0, process_1.cloneProcess)(proc));
-    const traceById = new Map(traces.map((trace) => [trace.process.id, trace]));
-    const slices = [];
-    const ready = [];
-    let currentTime = 0;
-    let idleTime = 0;
-    let index = 0;
-    while (ready.length > 0 || index < ordered.length) {
-        while (index < ordered.length && ordered[index].arrivalTime <= currentTime) {
-            ready.push(ordered[index]);
-            index += 1;
+    const trazas = ordenados.map((proc) => (0, process_1.clonarProceso)(proc));
+    const trazaPorId = new Map(trazas.map((traza) => [traza.proceso.id, traza]));
+    const intervalos = [];
+    const listos = [];
+    let tiempoActual = 0;
+    let tiempoOcioso = 0;
+    let indice = 0;
+    while (listos.length > 0 || indice < ordenados.length) {
+        // Encolar los que llegan antes o en el momento actual
+        while (indice < ordenados.length && ordenados[indice].tiempoLlegada <= tiempoActual) {
+            listos.push(ordenados[indice]);
+            indice += 1;
         }
-        if (ready.length === 0) {
-            const nextArrival = ordered[index].arrivalTime;
-            idleTime += nextArrival - currentTime;
-            currentTime = nextArrival;
+        if (listos.length === 0) {
+            const proximaLlegada = ordenados[indice].tiempoLlegada;
+            tiempoOcioso += proximaLlegada - tiempoActual;
+            tiempoActual = proximaLlegada;
             continue;
         }
-        const next = selectShortestJob(ready);
-        const queueIndex = ready.findIndex((proc) => proc.id === next.id);
-        ready.splice(queueIndex, 1);
-        const trace = traceById.get(next.id);
-        if (!trace) {
-            throw new Error(`Missing runtime trace for process ${next.id}`);
+        const siguiente = seleccionarTrabajoMasCorto(listos);
+        const indiceCola = listos.findIndex((proc) => proc.id === siguiente.id);
+        listos.splice(indiceCola, 1);
+        const traza = trazaPorId.get(siguiente.id);
+        if (!traza) {
+            throw new Error(`Falta traza para el proceso ${siguiente.id}`);
         }
-        trace.startTimes.push(currentTime);
-        const endTime = currentTime + next.burstTime;
-        trace.remainingTime = 0;
-        trace.completionTime = endTime;
-        slices.push({ processId: next.id, startTime: currentTime, endTime });
-        currentTime = endTime;
+        traza.tiemposInicio.push(tiempoActual);
+        const tiempoFin = tiempoActual + siguiente.tiempoRafaga;
+        traza.tiempoRestante = 0;
+        traza.tiempoFinalizacion = tiempoFin;
+        intervalos.push({ idProceso: siguiente.id, tiempoInicio: tiempoActual, tiempoFin });
+        tiempoActual = tiempoFin;
     }
     return {
-        slices,
-        traces,
-        totalTime: currentTime,
-        idleTime,
+        intervalos,
+        trazas,
+        tiempoTotal: tiempoActual,
+        tiempoOcioso,
     };
 };
-exports.default = runSjf;
+exports.default = ejecutarSjf;

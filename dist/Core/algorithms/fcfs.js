@@ -1,39 +1,48 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const process_1 = require("../process");
-const runFcfs = (processes) => {
-    const ordered = [...processes].sort((a, b) => {
-        if (a.arrivalTime === b.arrivalTime) {
+/**
+ * Implementación del algoritmo First-Come, First-Served (FCFS).
+ * Los procesos se ejecutan en estricto orden de llegada.
+ * No expropiativo.
+ */
+const ejecutarFcfs = (procesos) => {
+    // Ordenar por llegada
+    const ordenados = [...procesos].sort((a, b) => {
+        if (a.tiempoLlegada === b.tiempoLlegada) {
             return a.id.localeCompare(b.id);
         }
-        return a.arrivalTime - b.arrivalTime;
+        return a.tiempoLlegada - b.tiempoLlegada;
     });
-    const traces = ordered.map((proc) => (0, process_1.cloneProcess)(proc));
-    const traceById = new Map(traces.map((trace) => [trace.process.id, trace]));
-    const slices = [];
-    let currentTime = 0;
-    let idleTime = 0;
-    ordered.forEach((proc) => {
-        const trace = traceById.get(proc.id);
-        if (!trace) {
-            throw new Error(`Missing runtime trace for process ${proc.id}`);
+    // Inicializar trazas
+    const trazas = ordenados.map((proc) => (0, process_1.clonarProceso)(proc));
+    const trazaPorId = new Map(trazas.map((traza) => [traza.proceso.id, traza]));
+    const intervalos = [];
+    let tiempoActual = 0;
+    let tiempoOcioso = 0;
+    ordenados.forEach((proc) => {
+        const traza = trazaPorId.get(proc.id);
+        if (!traza) {
+            throw new Error(`Falta traza para el proceso ${proc.id}`);
         }
-        if (currentTime < proc.arrivalTime) {
-            idleTime += proc.arrivalTime - currentTime;
-            currentTime = proc.arrivalTime;
+        // Si el proceso llega después del tiempo actual, la CPU espera
+        if (tiempoActual < proc.tiempoLlegada) {
+            tiempoOcioso += proc.tiempoLlegada - tiempoActual;
+            tiempoActual = proc.tiempoLlegada;
         }
-        trace.startTimes.push(currentTime);
-        const endTime = currentTime + proc.burstTime;
-        trace.remainingTime = 0;
-        trace.completionTime = endTime;
-        slices.push({ processId: proc.id, startTime: currentTime, endTime });
-        currentTime = endTime;
+        // Ejecución
+        traza.tiemposInicio.push(tiempoActual);
+        const tiempoFin = tiempoActual + proc.tiempoRafaga;
+        traza.tiempoRestante = 0;
+        traza.tiempoFinalizacion = tiempoFin;
+        intervalos.push({ idProceso: proc.id, tiempoInicio: tiempoActual, tiempoFin });
+        tiempoActual = tiempoFin;
     });
     return {
-        slices,
-        traces,
-        totalTime: currentTime,
-        idleTime,
+        intervalos,
+        trazas,
+        tiempoTotal: tiempoActual,
+        tiempoOcioso,
     };
 };
-exports.default = runFcfs;
+exports.default = ejecutarFcfs;

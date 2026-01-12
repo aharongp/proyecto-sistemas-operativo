@@ -1,161 +1,187 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.runOnce = exports.runInteractiveConsole = void 0;
+exports.runOnce = exports.runInteractiveConsole = exports.ejecutarUnaVez = exports.ejecutarConsolaInteractiva = void 0;
 const node_process_1 = require("node:process");
 const promises_1 = require("node:readline/promises");
 const scheduler_1 = require("../Core/scheduler");
 const results_display_1 = require("./results_display");
 const process_generator_1 = require("../Utils/process_generator");
 const file_handler_1 = require("../Utils/file_handler");
-const askNumber = async (prompt, rl, fallback) => {
-    const answer = (await rl.question(prompt)).trim();
-    if (answer.length === 0 && fallback !== undefined) {
-        return fallback;
+/**
+ * Solicita al usuario un número y maneja la validación básica.
+ */
+const solicitarNumero = async (mensaje, rl, respaldo) => {
+    const respuesta = (await rl.question(mensaje)).trim();
+    if (respuesta.length === 0 && respaldo !== undefined) {
+        return respaldo;
     }
-    const parsed = Number(answer);
-    if (Number.isNaN(parsed)) {
-        console.log("Valor no valido, intenta de nuevo.");
-        return askNumber(prompt, rl, fallback);
+    const parseado = Number(respuesta);
+    if (Number.isNaN(parseado)) {
+        console.log("Valor no válido, intenta de nuevo.");
+        return solicitarNumero(mensaje, rl, respaldo);
     }
-    return parsed;
+    return parseado;
 };
-const askBoolean = async (prompt, rl, fallback = false) => {
-    const answer = (await rl.question(prompt)).trim().toLowerCase();
-    if (answer.length === 0) {
-        return fallback;
+/**
+ * Solicita una respuesta afirmativa/negativa con soporte a valores por defecto.
+ */
+const solicitarBooleano = async (mensaje, rl, respaldo = false) => {
+    const respuesta = (await rl.question(mensaje)).trim().toLowerCase();
+    if (respuesta.length === 0) {
+        return respaldo;
     }
-    return ["s", "si", "sí", "y", "yes"].includes(answer);
+    return ["s", "si", "sí", "y", "yes"].includes(respuesta);
 };
-const askProcessesManual = async (rl) => {
-    const count = await askNumber("Cantidad de procesos: ", rl);
-    const processes = [];
-    for (let index = 0; index < count; index += 1) {
-        const id = (await rl.question(`ID proceso ${index + 1}: `)).trim() || `P${index + 1}`;
-        const arrivalTime = await askNumber(`Llegada para ${id}: `, rl, 0);
-        const burstTime = await askNumber(`Rafaga para ${id}: `, rl);
-        const priorityInput = (await rl.question(`Prioridad para ${id} (opcional): `)).trim();
-        const priority = priorityInput.length > 0 ? Number(priorityInput) : undefined;
-        processes.push({ id, arrivalTime, burstTime, priority });
+/**
+ * Permite capturar procesos de manera manual desde consola.
+ */
+const solicitarProcesosManual = async (rl) => {
+    const cantidad = await solicitarNumero("Cantidad de procesos: ", rl);
+    const procesos = [];
+    for (let indice = 0; indice < cantidad; indice += 1) {
+        const id = (await rl.question(`ID proceso ${indice + 1}: `)).trim() || `P${indice + 1}`;
+        const tiempoLlegada = await solicitarNumero(`Llegada para ${id}: `, rl, 0);
+        const tiempoRafaga = await solicitarNumero(`Ráfaga para ${id}: `, rl);
+        const textoPrioridad = (await rl.question(`Prioridad para ${id} (opcional): `)).trim();
+        const prioridad = textoPrioridad.length > 0 ? Number(textoPrioridad) : undefined;
+        procesos.push({ id, tiempoLlegada, tiempoRafaga, prioridad });
     }
-    return processes;
+    return procesos;
 };
-const choosePredefinedCase = async (rl) => {
-    const cases = (0, process_generator_1.getPredefinedCases)();
+/**
+ * Muestra los casos predefinidos y permite elegir uno.
+ */
+const elegirCasoPredefinido = async (rl) => {
+    const casos = (0, process_generator_1.obtenerCasosPredefinidos)();
     console.log("\nCasos disponibles:");
-    cases.forEach((item, index) => {
-        console.log(`${index + 1}. ${item.name} - ${item.description ?? ""}`);
+    casos.forEach((caso, indice) => {
+        console.log(`${indice + 1}. ${caso.nombre} - ${caso.descripcion ?? ""}`);
     });
-    const choice = await askNumber("Selecciona un caso: ", rl);
-    const selected = cases[choice - 1];
-    if (!selected) {
-        console.log("Opcion invalida, se usara el primer caso.");
-        return cases[0];
+    const seleccion = await solicitarNumero("Selecciona un caso: ", rl);
+    const elegido = casos[seleccion - 1];
+    if (!elegido) {
+        console.log("Opción inválida, se usará el primer caso.");
+        return casos[0];
     }
-    return selected;
+    return elegido;
 };
-const askProcessSource = async (rl) => {
+/**
+ * Determina el origen de los procesos para una simulación.
+ */
+const solicitarFuenteProcesos = async (rl) => {
     console.log("\nOrigen de procesos:");
     console.log("1. Caso predefinido del proyecto");
     console.log("2. Cargar desde archivo (.json / .csv)");
     console.log("3. Generar aleatoriamente");
     console.log("4. Ingresar manualmente");
-    const option = await askNumber("Selecciona opcion: ", rl);
-    switch (option) {
+    const opcion = await solicitarNumero("Selecciona opción: ", rl);
+    switch (opcion) {
         case 1: {
-            const selected = await choosePredefinedCase(rl);
-            return selected.processes;
+            const caso = await elegirCasoPredefinido(rl);
+            return caso.procesos;
         }
         case 2: {
-            const path = (await rl.question("Ruta del archivo: ")).trim();
-            return (0, file_handler_1.loadProcesses)(path);
+            const ruta = (await rl.question("Ruta del archivo: ")).trim();
+            return (0, file_handler_1.cargarProcesos)(ruta);
         }
         case 3: {
-            const count = await askNumber("Cantidad de procesos a generar: ", rl, 5);
-            return (0, process_generator_1.generateRandomProcesses)(count);
+            const cantidad = await solicitarNumero("Cantidad de procesos a generar: ", rl, 5);
+            return (0, process_generator_1.generarProcesosAleatorios)(cantidad);
         }
         case 4:
         default:
-            return askProcessesManual(rl);
+            return solicitarProcesosManual(rl);
     }
 };
-const askAlgorithm = async (rl) => {
-    const algorithms = (0, scheduler_1.getAlgorithms)();
+/**
+ * Solicita el algoritmo a ejecutar y sus opciones asociadas.
+ */
+const solicitarAlgoritmo = async (rl) => {
+    const algoritmos = (0, scheduler_1.obtenerAlgoritmos)();
     console.log("\nAlgoritmos disponibles:");
     console.log("0. Ejecutar todos");
-    algorithms.forEach((item, index) => {
-        console.log(`${index + 1}. ${item.name}`);
+    algoritmos.forEach((algoritmo, indice) => {
+        console.log(`${indice + 1}. ${algoritmo.nombre}`);
     });
-    const choice = await askNumber("Selecciona algoritmo: ", rl, 1);
-    if (choice === 0) {
-        const options = {};
-        const roundRobin = algorithms.find((item) => item.key === scheduler_1.SchedulerAlgorithm.RoundRobin);
+    const seleccion = await solicitarNumero("Selecciona algoritmo: ", rl, 1);
+    if (seleccion === 0) {
+        const opciones = {};
+        const roundRobin = algoritmos.find((algoritmo) => algoritmo.clave === scheduler_1.AlgoritmoPlanificacion.RoundRobin);
         if (roundRobin) {
-            const needsQuantum = await askBoolean("Deseas cambiar el quantum por defecto (4)? [s/N]: ", rl, false);
-            if (needsQuantum) {
-                const quantum = await askNumber("Quantum: ", rl, 4);
-                options[scheduler_1.SchedulerAlgorithm.RoundRobin] = { quantum };
-            }
-            else {
-                options[scheduler_1.SchedulerAlgorithm.RoundRobin] = { quantum: 4 };
-            }
+            const cambiarQuantum = await solicitarBooleano("¿Deseas cambiar el quantum por defecto (4)? [s/N]: ", rl, false);
+            const quantum = cambiarQuantum ? await solicitarNumero("Quantum: ", rl, 4) : 4;
+            opciones[scheduler_1.AlgoritmoPlanificacion.RoundRobin] = { quantum };
         }
-        const wantsPreemptive = await askBoolean("Prioridad con desalojo? [s/N]: ", rl, false);
-        options[scheduler_1.SchedulerAlgorithm.Priority] = { preemptivePriority: wantsPreemptive };
-        return { mode: "all", options };
+        const prioridadExpropiativa = await solicitarBooleano("¿Prioridad con desalojo? [s/N]: ", rl, false);
+        opciones[scheduler_1.AlgoritmoPlanificacion.Prioridad] = { prioridadExpropiativa };
+        return { modo: "todos", opciones };
     }
-    const selected = algorithms[choice - 1] ?? algorithms[0];
-    const options = {};
-    if (selected.key === scheduler_1.SchedulerAlgorithm.RoundRobin) {
-        const quantum = await askNumber("Quantum para Round Robin (default 4): ", rl, 4);
-        options.quantum = quantum;
+    const algoritmoSeleccionado = algoritmos[seleccion - 1] ?? algoritmos[0];
+    const opciones = {};
+    if (algoritmoSeleccionado.clave === scheduler_1.AlgoritmoPlanificacion.RoundRobin) {
+        opciones.quantum = await solicitarNumero("Quantum para Round Robin (default 4): ", rl, 4);
     }
-    if (selected.key === scheduler_1.SchedulerAlgorithm.Priority) {
-        const preemptive = await askBoolean("Deseas habilitar prioridad con desalojo? [s/N]: ", rl, false);
-        options.preemptivePriority = preemptive;
+    if (algoritmoSeleccionado.clave === scheduler_1.AlgoritmoPlanificacion.Prioridad) {
+        opciones.prioridadExpropiativa = await solicitarBooleano("¿Deseas habilitar prioridad con desalojo? [s/N]: ", rl, false);
     }
-    return { mode: "single", key: selected.key, options };
+    return { modo: "uno", clave: algoritmoSeleccionado.clave, opciones };
 };
-const runSimulations = (processes, selection) => {
-    if (selection.mode === "single") {
-        return (0, scheduler_1.runSimulation)(selection.key, processes, selection.options);
+/**
+ * Ejecuta la simulación según la selección indicada.
+ */
+const ejecutarSegunSeleccion = (procesos, seleccion) => {
+    if (seleccion.modo === "uno") {
+        return (0, scheduler_1.ejecutarSimulacion)(seleccion.clave, procesos, seleccion.opciones);
     }
-    return (0, scheduler_1.runAllSimulations)(processes, selection.options);
+    return (0, scheduler_1.ejecutarTodasSimulaciones)(procesos, seleccion.opciones);
 };
-const presentResults = (outcome) => {
-    if (Array.isArray(outcome)) {
-        outcome.forEach((result) => (0, results_display_1.printSimulationResult)(result));
-        (0, results_display_1.printComparison)(outcome);
+/**
+ * Muestra los resultados en consola ya sea de una o múltiples simulaciones.
+ */
+const mostrarResultados = (resultado) => {
+    if (Array.isArray(resultado)) {
+        resultado.forEach((item) => (0, results_display_1.imprimirResultadoSimulacion)(item));
+        (0, results_display_1.imprimirComparativa)(resultado);
     }
     else {
-        (0, results_display_1.printSimulationResult)(outcome);
+        (0, results_display_1.imprimirResultadoSimulacion)(resultado);
     }
 };
-const runInteractiveConsole = async () => {
+/**
+ * Punto de entrada para la experiencia interactiva por consola.
+ */
+const ejecutarConsolaInteractiva = async () => {
     const rl = (0, promises_1.createInterface)({ input: node_process_1.stdin, output: node_process_1.stdout });
-    console.log("Simulador de Planificacion de CPU");
+    console.log("Simulador de Planificación de CPU");
     try {
-        let continueLoop = true;
-        while (continueLoop) {
+        let continuar = true;
+        while (continuar) {
             try {
-                const processes = await askProcessSource(rl);
-                const selection = await askAlgorithm(rl);
-                const outcome = runSimulations(processes, selection);
-                presentResults(outcome);
+                const procesos = await solicitarFuenteProcesos(rl);
+                const seleccion = await solicitarAlgoritmo(rl);
+                const resultado = ejecutarSegunSeleccion(procesos, seleccion);
+                mostrarResultados(resultado);
             }
             catch (error) {
-                console.error("Error durante la simulacion:", error.message);
+                console.error("Error durante la simulación:", error.message);
             }
-            continueLoop = await askBoolean("\nDeseas ejecutar otra simulacion? [s/N]: ", rl, false);
+            continuar = await solicitarBooleano("\n¿Deseas ejecutar otra simulación? [s/N]: ", rl, false);
         }
     }
     finally {
         rl.close();
     }
 };
-exports.runInteractiveConsole = runInteractiveConsole;
-const runOnce = (processes, selection) => {
-    const outcome = runSimulations(processes, selection);
-    presentResults(outcome);
-    return outcome;
+exports.ejecutarConsolaInteractiva = ejecutarConsolaInteractiva;
+/**
+ * Ejecuta la consola en modo no interactivo (útil para pruebas automatizadas).
+ */
+const ejecutarUnaVez = (procesos, seleccion) => {
+    const resultado = ejecutarSegunSeleccion(procesos, seleccion);
+    mostrarResultados(resultado);
+    return resultado;
 };
-exports.runOnce = runOnce;
+exports.ejecutarUnaVez = ejecutarUnaVez;
+// Alias en inglés para compatibilidad con scripts anteriores
+exports.runInteractiveConsole = exports.ejecutarConsolaInteractiva;
+exports.runOnce = exports.ejecutarUnaVez;

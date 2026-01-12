@@ -3,114 +3,131 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.saveProcesses = exports.loadProcesses = exports.writeProcessesToCsv = exports.writeProcessesToJson = exports.readProcessesFromCsv = exports.readProcessesFromJson = void 0;
+exports.guardarProcesos = exports.cargarProcesos = exports.escribirProcesosACsv = exports.escribirProcesosAJson = exports.leerProcesosDesdeCsv = exports.leerProcesosDesdeJson = void 0;
 const node_fs_1 = require("node:fs");
 const node_path_1 = __importDefault(require("node:path"));
 const process_1 = require("../Core/process");
-const parseNumber = (value, fallback) => {
-    if (value === undefined || value === null || value === "") {
-        if (fallback !== undefined) {
-            return fallback;
+const parsearNumero = (valor, respaldo) => {
+    if (valor === undefined || valor === null || valor === "") {
+        if (respaldo !== undefined) {
+            return respaldo;
         }
-        throw new Error("Required numeric value missing");
+        throw new Error("Se requiere un valor numérico");
     }
-    const parsed = Number(value);
-    if (Number.isNaN(parsed)) {
-        throw new Error(`Invalid numeric value: ${value}`);
+    const parseado = Number(valor);
+    if (Number.isNaN(parseado)) {
+        throw new Error(`Valor numérico inválido: ${valor}`);
     }
-    return parsed;
+    return parseado;
 };
-const sanitizeProcess = (raw, index) => {
-    if (!raw.id) {
-        throw new Error(`Process at index ${index} missing id`);
+const sanitizarProceso = (crudo, indice) => {
+    if (!crudo.id) {
+        throw new Error(`Proceso en índice ${indice} no tiene id`);
     }
-    const arrivalTime = parseNumber(raw.arrivalTime, 0);
-    const burstTime = parseNumber(raw.burstTime);
-    const priority = raw.priority !== undefined ? parseNumber(raw.priority) : undefined;
+    // Mapeo flexible para soportar input en ingles o español si fuera necesario, o solo español.
+    // Asumimos entrada en español o inglés por compatibilidad básica si queremos, pero mejor estricto en el nuevo formato.
+    // Vamos a soportar ambas keys por robustez si se lee un json viejo.
+    const tiempoLlegada = parsearNumero(crudo.tiempoLlegada ?? crudo.arrivalTime, 0);
+    const tiempoRafaga = parsearNumero(crudo.tiempoRafaga ?? crudo.burstTime);
+    const prioridad = (crudo.prioridad !== undefined || crudo.priority !== undefined)
+        ? parsearNumero(crudo.prioridad ?? crudo.priority)
+        : undefined;
     return {
-        id: String(raw.id),
-        arrivalTime,
-        burstTime,
-        priority,
+        id: String(crudo.id),
+        tiempoLlegada,
+        tiempoRafaga,
+        prioridad,
     };
 };
-const readProcessesFromJson = async (filePath) => {
-    const content = await node_fs_1.promises.readFile(filePath, "utf8");
-    const payload = JSON.parse(content);
-    if (!Array.isArray(payload)) {
-        throw new Error("JSON file must contain an array of processes");
+/**
+ * Lee procesos desde un archivo JSON.
+ */
+const leerProcesosDesdeJson = async (rutaArchivo) => {
+    const contenido = await node_fs_1.promises.readFile(rutaArchivo, "utf8");
+    const carga = JSON.parse(contenido);
+    if (!Array.isArray(carga)) {
+        throw new Error("El archivo JSON debe contener un array de procesos");
     }
-    const processes = payload.map((entry, index) => sanitizeProcess(entry, index));
-    (0, process_1.validateProcesses)(processes);
-    return processes;
+    const procesos = carga.map((entrada, indice) => sanitizarProceso(entrada, indice));
+    (0, process_1.validarProcesos)(procesos);
+    return procesos;
 };
-exports.readProcessesFromJson = readProcessesFromJson;
-const CSV_SEPARATORS = [",", ";", "\t"];
-const detectSeparator = (header) => {
-    for (const separator of CSV_SEPARATORS) {
-        if (header.includes(separator)) {
-            return separator;
+exports.leerProcesosDesdeJson = leerProcesosDesdeJson;
+const SEPARADORES_CSV = [",", ";", "\t"];
+const detectarSeparador = (encabezado) => {
+    for (const sep of SEPARADORES_CSV) {
+        if (encabezado.includes(sep)) {
+            return sep;
         }
     }
     return ",";
 };
-const readProcessesFromCsv = async (filePath) => {
-    const content = await node_fs_1.promises.readFile(filePath, "utf8");
-    const lines = content
+/**
+ * Lee procesos desde un archivo CSV o TXT delimitado.
+ */
+const leerProcesosDesdeCsv = async (rutaArchivo) => {
+    const contenido = await node_fs_1.promises.readFile(rutaArchivo, "utf8");
+    const lineas = contenido
         .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0 && !line.startsWith("#"));
-    if (lines.length === 0) {
+        .map((linea) => linea.trim())
+        .filter((linea) => linea.length > 0 && !linea.startsWith("#"));
+    if (lineas.length === 0) {
         return [];
     }
-    const separator = detectSeparator(lines[0]);
-    const headers = lines[0].split(separator).map((value) => value.trim());
-    const rows = lines.slice(1);
-    const processes = rows.map((row, index) => {
-        const values = row.split(separator).map((value) => value.trim());
-        const raw = {};
-        headers.forEach((header, headerIndex) => {
-            raw[header] = values[headerIndex];
+    const separador = detectarSeparador(lineas[0]);
+    const encabezados = lineas[0].split(separador).map((v) => v.trim());
+    const filas = lineas.slice(1);
+    const procesos = filas.map((fila, indice) => {
+        const valores = fila.split(separador).map((v) => v.trim());
+        const crudo = {};
+        encabezados.forEach((encabezado, idx) => {
+            crudo[encabezado] = valores[idx];
         });
-        return sanitizeProcess(raw, index);
+        return sanitizarProceso(crudo, indice);
     });
-    (0, process_1.validateProcesses)(processes);
-    return processes;
+    (0, process_1.validarProcesos)(procesos);
+    return procesos;
 };
-exports.readProcessesFromCsv = readProcessesFromCsv;
-const writeProcessesToJson = async (filePath, processes) => {
-    await node_fs_1.promises.writeFile(filePath, JSON.stringify(processes, null, 2), "utf8");
+exports.leerProcesosDesdeCsv = leerProcesosDesdeCsv;
+const escribirProcesosAJson = async (rutaArchivo, procesos) => {
+    await node_fs_1.promises.writeFile(rutaArchivo, JSON.stringify(procesos, null, 2), "utf8");
 };
-exports.writeProcessesToJson = writeProcessesToJson;
-const toCsvLine = (process) => [process.id, process.arrivalTime, process.burstTime, process.priority ?? ""].join(",");
-const writeProcessesToCsv = async (filePath, processes) => {
-    const header = "id,arrivalTime,burstTime,priority";
-    const rows = processes.map((process) => toCsvLine(process));
-    const payload = [header, ...rows].join("\n");
-    await node_fs_1.promises.writeFile(filePath, payload, "utf8");
+exports.escribirProcesosAJson = escribirProcesosAJson;
+const aLineaCsv = (proceso) => [proceso.id, proceso.tiempoLlegada, proceso.tiempoRafaga, proceso.prioridad ?? ""].join(",");
+const escribirProcesosACsv = async (rutaArchivo, procesos) => {
+    const encabezado = "id,tiempoLlegada,tiempoRafaga,prioridad";
+    const filas = procesos.map((proc) => aLineaCsv(proc));
+    const carga = [encabezado, ...filas].join("\n");
+    await node_fs_1.promises.writeFile(rutaArchivo, carga, "utf8");
 };
-exports.writeProcessesToCsv = writeProcessesToCsv;
-const loadProcesses = async (filePath) => {
-    const extension = node_path_1.default.extname(filePath).toLowerCase();
+exports.escribirProcesosACsv = escribirProcesosACsv;
+/**
+ * Carga procesos desde un archivo detectando formato por extensión.
+ */
+const cargarProcesos = async (rutaArchivo) => {
+    const extension = node_path_1.default.extname(rutaArchivo).toLowerCase();
     if (extension === ".json") {
-        return (0, exports.readProcessesFromJson)(filePath);
+        return (0, exports.leerProcesosDesdeJson)(rutaArchivo);
     }
     if (extension === ".csv" || extension === ".txt") {
-        return (0, exports.readProcessesFromCsv)(filePath);
+        return (0, exports.leerProcesosDesdeCsv)(rutaArchivo);
     }
-    throw new Error(`Unsupported file format: ${extension}`);
+    throw new Error(`Formato de archivo no soportado: ${extension}`);
 };
-exports.loadProcesses = loadProcesses;
-const saveProcesses = async (filePath, processes) => {
-    const extension = node_path_1.default.extname(filePath).toLowerCase();
+exports.cargarProcesos = cargarProcesos;
+/**
+ * Guarda procesos en un archivo detectando formato por extensión.
+ */
+const guardarProcesos = async (rutaArchivo, procesos) => {
+    const extension = node_path_1.default.extname(rutaArchivo).toLowerCase();
     if (extension === ".json") {
-        await (0, exports.writeProcessesToJson)(filePath, processes);
+        await (0, exports.escribirProcesosAJson)(rutaArchivo, procesos);
         return;
     }
     if (extension === ".csv" || extension === ".txt") {
-        await (0, exports.writeProcessesToCsv)(filePath, processes);
+        await (0, exports.escribirProcesosACsv)(rutaArchivo, procesos);
         return;
     }
-    throw new Error(`Unsupported file format: ${extension}`);
+    throw new Error(`Formato de archivo no soportado: ${extension}`);
 };
-exports.saveProcesses = saveProcesses;
+exports.guardarProcesos = guardarProcesos;

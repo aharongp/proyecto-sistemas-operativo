@@ -1,111 +1,136 @@
-import { ProcessInput } from "../Core/process";
+import { ProcesoEntrada } from "../Core/process";
 
-export interface ProcessSet {
-	name: string;
-	description?: string;
-	processes: ProcessInput[];
+/**
+ * Estructura para un conjunto de procesos con nombre y descripción.
+ */
+export interface ConjuntoProcesos {
+nombre: string;
+descripcion?: string;
+procesos: ProcesoEntrada[];
 }
 
-export interface RandomGenerationOptions {
-	arrivalRange?: [number, number];
-	burstRange?: [number, number];
-	priorityRange?: [number, number];
+/**
+ * Opciones para la generación de procesos aleatorios.
+ */
+export interface OpcionesGeneracionAleatoria {
+rangoLlegada?: [number, number]; // [min, max]
+rangoRafaga?: [number, number];
+rangoPrioridad?: [number, number];
 }
 
-const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, max));
+const limitar = (valor: number, min: number, max: number) => Math.max(min, Math.min(valor, max));
 
-const createProcess = (
-	id: string,
-	arrivalTime: number,
-	burstTime: number,
-	priority: number,
-): ProcessInput => ({
-	id,
-	arrivalTime,
-	burstTime,
-	priority,
+const crearProceso = (
+id: string,
+tiempoLlegada: number,
+tiempoRafaga: number,
+prioridad: number,
+): ProcesoEntrada => ({
+id,
+tiempoLlegada,
+tiempoRafaga,
+prioridad,
 });
 
-const CASE_ONE: ProcessSet = {
-	name: "Caso 1 - Procesos Basicos",
-	description: "Conjunto base del enunciado con cuatro procesos",
-	processes: [
-		createProcess("P1", 0, 8, 3),
-		createProcess("P2", 1, 4, 1),
-		createProcess("P3", 2, 9, 4),
-		createProcess("P4", 3, 5, 2),
-	],
+const CASO_UNO: ConjuntoProcesos = {
+nombre: "Caso 1 - Procesos Basicos",
+descripcion: "Conjunto base del enunciado con cuatro procesos",
+procesos: [
+crearProceso("P1", 0, 8, 3),
+crearProceso("P2", 1, 4, 1),
+crearProceso("P3", 2, 9, 4),
+crearProceso("P4", 3, 5, 2),
+],
 };
 
-const CASE_TWO: ProcessSet = {
-	name: "Caso 2 - Procesos Variados",
-	description: "Conjunto mixto con cinco procesos",
-	processes: [
-		createProcess("P1", 0, 10, 2),
-		createProcess("P2", 2, 3, 1),
-		createProcess("P3", 4, 6, 3),
-		createProcess("P4", 6, 1, 1),
-		createProcess("P5", 8, 4, 2),
-	],
+const CASO_DOS: ConjuntoProcesos = {
+nombre: "Caso 2 - Procesos Variados",
+descripcion: "Conjunto mixto con cinco procesos",
+procesos: [
+crearProceso("P1", 0, 10, 2),
+crearProceso("P2", 2, 3, 1),
+crearProceso("P3", 4, 6, 3),
+crearProceso("P4", 6, 1, 1),
+crearProceso("P5", 8, 4, 2),
+],
 };
 
-const CASE_THREE: ProcessSet = {
-	name: "Caso 3 - Escenario Personal",
-	description: "Conjunto editable para experimentos adicionales",
-	processes: [
-		createProcess("P1", 0, 7, 2),
-		createProcess("P2", 1, 5, 4),
-		createProcess("P3", 3, 2, 1),
-		createProcess("P4", 5, 6, 3),
-	],
+const CASO_TRES: ConjuntoProcesos = {
+nombre: "Caso 3 - Escenario Personal",
+descripcion: "Conjunto editable para experimentos adicionales",
+procesos: [
+crearProceso("P1", 0, 7, 2),
+crearProceso("P2", 1, 5, 4),
+crearProceso("P3", 3, 2, 1),
+crearProceso("P4", 5, 6, 3),
+],
 };
 
-const PREDEFINED_CASES = [CASE_ONE, CASE_TWO, CASE_THREE];
+const CASOS_PREDEFINIDOS = [CASO_UNO, CASO_DOS, CASO_TRES];
 
-export const getPredefinedCases = () => PREDEFINED_CASES;
+/**
+ * Retorna todos los casos de prueba predefinidos.
+ */
+export const obtenerCasosPredefinidos = () => CASOS_PREDEFINIDOS;
 
-export const getPredefinedCase = (name: string) =>
-	PREDEFINED_CASES.find((set) => set.name.toLowerCase() === name.toLowerCase());
+/**
+ * Busca un caso predefinido por nombre.
+ */
+export const obtenerCasoPredefinido = (nombre: string) =>
+CASOS_PREDEFINIDOS.find((set) => set.nombre.toLowerCase() === nombre.toLowerCase());
 
-export const generateRandomProcesses = (
-	count: number,
-	options: RandomGenerationOptions = {},
-): ProcessInput[] => {
-	if (count <= 0) {
-		return [];
-	}
+/**
+ * Genera una lista de procesos aleatorios según las opciones dadas.
+ * 
+ * @param cantidad Número de procesos a generar.
+ * @param opciones Rangos de valores.
+ * @returns Lista de procesos ordenados por llegada.
+ */
+export const generarProcesosAleatorios = (
+cantidad: number,
+opciones: OpcionesGeneracionAleatoria = {},
+): ProcesoEntrada[] => {
+if (cantidad <= 0) {
+return [];
+}
 
-	const [arrivalMin, arrivalMax] = options.arrivalRange ?? [0, 10];
-	const [burstMin, burstMax] = options.burstRange ?? [1, 12];
-	const [priorityMin, priorityMax] = options.priorityRange ?? [1, 5];
+const [llegadaMin, llegadaMax] = opciones.rangoLlegada ?? [0, 10];
+const [rafagaMin, rafagaMax] = opciones.rangoRafaga ?? [1, 12];
+const [prioridadMin, prioridadMax] = opciones.rangoPrioridad ?? [1, 5];
 
-	const processes: ProcessInput[] = [];
-	for (let index = 0; index < count; index += 1) {
-		const id = `PX${index + 1}`;
-		const arrival = Math.floor(Math.random() * (arrivalMax - arrivalMin + 1)) + arrivalMin;
-		const burst = Math.floor(Math.random() * (burstMax - burstMin + 1)) + burstMin;
-		const priority = Math.floor(Math.random() * (priorityMax - priorityMin + 1)) + priorityMin;
-		processes.push(
-			createProcess(
-				id,
-				clamp(arrival, arrivalMin, arrivalMax),
-				clamp(burst, burstMin, burstMax),
-				clamp(priority, priorityMin, priorityMax),
-			),
-		);
-	}
+const procesos: ProcesoEntrada[] = [];
+for (let i = 0; i < cantidad; i += 1) {
+const id = `PX${i + 1}`;
+const llegada = Math.floor(Math.random() * (llegadaMax - llegadaMin + 1)) + llegadaMin;
+const rafaga = Math.floor(Math.random() * (rafagaMax - rafagaMin + 1)) + rafagaMin;
+const prioridad = Math.floor(Math.random() * (prioridadMax - prioridadMin + 1)) + prioridadMin;
+procesos.push(
+crearProceso(
+id,
+limitar(llegada, llegadaMin, llegadaMax),
+limitar(rafaga, rafagaMin, rafagaMax),
+limitar(prioridad, prioridadMin, prioridadMax),
+),
+);
+}
 
-	return processes.sort((a, b) => {
-		if (a.arrivalTime === b.arrivalTime) {
-			return a.id.localeCompare(b.id);
-		}
-		return a.arrivalTime - b.arrivalTime;
-	});
-};
-
-export const buildCustomCase = (name: string, processes: ProcessInput[], description?: string): ProcessSet => ({
-	name,
-	description,
-	processes,
+return procesos.sort((a, b) => {
+if (a.tiempoLlegada === b.tiempoLlegada) {
+return a.id.localeCompare(b.id);
+}
+return a.tiempoLlegada - b.tiempoLlegada;
 });
+};
 
+/**
+ * Construye un objeto ConjuntoProcesos personalizado.
+ */
+export const construirCasoPersonalizado = (
+nombre: string,
+procesos: ProcesoEntrada[],
+descripcion?: string,
+): ConjuntoProcesos => ({
+nombre,
+descripcion,
+procesos,
+});
